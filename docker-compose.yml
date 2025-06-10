@@ -2,7 +2,7 @@ version: '3.8'
 
 services:
   mcp-server:
-    image: your-image-name:tag # Replace with your actual image name and tag
+    image: adalmia/rb_mcp:latest
     ports:
       - "8000:8000"
     container_name: mcp-server
