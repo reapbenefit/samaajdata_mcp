@@ -1,146 +1,208 @@
 import json
-from typing import Optional
+import os
+from typing import Optional, Literal
 from mcp.server.fastmcp import FastMCP, Context
 from mcp.server.fastmcp.prompts import base
-
+import asyncpg
 import pandas as pd
-import logging
+import json
+from contextlib import asynccontextmanager
 from datetime import datetime
+from dotenv import load_dotenv
 
-# Load your dataset (you might want to replace this with your actual CSV loading logic)
-df = pd.read_csv("stubble_data.csv")
-df["ACQ_DATE"] = pd.to_datetime(df["ACQ_DATE"], format="%d/%m/%Y", errors="coerce")
+load_dotenv()
 
-mcp = FastMCP("Punjab Fire Analysis Server", host="0.0.0.0")
-
-# ========== Resources ==========
+DATABASE_URL = os.getenv("DATABASE_URL")
 
 
-@mcp.resource("data://fires")
-def raw_fire_data() -> str:
-    """Return the full fire dataset as a CSV string."""
-    return df.to_csv(index=False)
+# @asynccontextmanager
+# async def lifespan(app: FastMCP):
+#     async with app.default_lifespan():
+#         conn = await asyncpg.connect(DATABASE_URL)
+#         try:
+#             yield {"db": conn}  # inject into context
+#         finally:
+#             await conn.close()
 
 
-# ========== Tools ==========
+mcp = FastMCP("SamaajData MCP server", host="0.0.0.0")
 
 
-@mcp.tool()
-async def get_all_fire_incidents(
-    ctx: Context, start_date: Optional[str] = None, end_date: Optional[str] = None
-) -> list[dict]:
-    """Return all fire incidents of stubble burning (optionally, within a date range) in the format of:
-        Year,District,Tehsil / Block,Satellite,Latitude,Longitude,ACQ_DATE,ACQ_TIME,Day / Night,Fire Power (W/m2)
-
-    The raw data is from 1/10/2021 to 9/11/2021.
-
-    Args:
-        start_date: The start date of the date range. Format: DD/MM/YYYY
-        end_date: The end date of the date range.
-
-    Example:
-    ```
-    get_fire_incidents_by_date_range("22/11/2021", "22/11/2021")
-    ```
-    """
-    await ctx.debug(f"start_date: {start_date}")
-    await ctx.debug(str(df["ACQ_DATE"].values))
-
-    if start_date:
-        start = pd.to_datetime(start_date, dayfirst=True)
-    if end_date:
-        end = pd.to_datetime(end_date, dayfirst=True)
-
-    filtered_df = df[df["ACQ_DATE"].notna()]
-
-    if start_date:
-        filtered_df = filtered_df[filtered_df["ACQ_DATE"] >= start]
-    if end_date:
-        filtered_df = filtered_df[filtered_df["ACQ_DATE"] <= end]
-
-    filtered_df["ACQ_DATE"] = filtered_df["ACQ_DATE"].dt.strftime("%d/%m/%Y")
-
-    return json.dumps(filtered_df.to_dict(orient="records"))
-
-
-@mcp.tool()
-def aggregate_fire_power_by_day(
-    start_date: str, end_date: str, district: str = None
-) -> dict:
-    """Aggregate total fire power per day within date range and optional district."""
-    start = pd.to_datetime(start_date)
-    end = pd.to_datetime(end_date)
-    filtered = df[(df["ACQ_DATE"] >= start) & (df["ACQ_DATE"] <= end)]
-    if district:
-        filtered = filtered[filtered["District"] == district.upper()]
-    result = filtered.groupby("ACQ_DATE")["Fire Power (W/m2)"].sum().to_dict()
-    return {k.strftime("%Y-%m-%d"): v for k, v in result.items()}
-
-
-@mcp.tool()
-def count_incidents_by_satellite() -> dict:
-    """Count incidents by satellite."""
-    return df["Satellite"].value_counts().to_dict()
-
-
-@mcp.tool()
-def top_fire_days(n: int = 5, district: str = None) -> list[dict]:
-    """Top N days with highest total fire power."""
-    data = df.copy()
-    if district:
-        data = data[data["District"] == district.upper()]
-    summary = data.groupby("ACQ_DATE")["Fire Power (W/m2)"].sum().nlargest(n)
-    return [
-        {"date": d.strftime("%Y-%m-%d"), "total_power": p} for d, p in summary.items()
-    ]
-
-
-@mcp.tool()
-def analyze_night_vs_day() -> dict:
-    """Compare count and average fire power during day vs night."""
-    counts = df["Day / Night"].value_counts().to_dict()
-    means = df.groupby("Day / Night")["Fire Power (W/m2)"].mean().round(2).to_dict()
-    return {"counts": counts, "average_power": means}
-
-
-# ========== Prompts ==========
-
-
-@mcp.prompt()
-def trend_analysis_prompt(
-    start_date: str, end_date: str, district: str = "MANSA"
-) -> str:
-    return f"""Based on the stubble burning data in {district} from {start_date} to {end_date}, summarize the trend in fire activity over time. 
-Highlight any peaks, changes in intensity, or sudden drops in fire power."""
-
-
-@mcp.prompt()
-def satellite_comparison_prompt() -> str:
-    return "Compare how many incidents were recorded by the AQUA and S-NPP satellites and whether one is significantly more active or sensitive."
-
-
-@mcp.prompt()
-def impact_assessment_prompt(
-    region: str = "MANSA", time_period: str = "Nov 2021"
-) -> str:
-    return f"""Has the fire activity in {region} during {time_period} shown signs of reduction due to government policy interventions like mulching subsidies?"""
-
-
-@mcp.prompt()
-def awareness_story_prompt(
-    region: str = "SARDULGARH", person_name: str = "Hardeep"
-) -> str:
-    return f"""Using data from {region}, generate a compelling story similar to Hardeep’s about someone who observed a spike in stubble burning, educated the community, and promoted mulching as an alternative."""
+async def get_db_connection():
+    conn = await asyncpg.connect(DATABASE_URL)
+    return conn
 
 
 # @mcp.tool()
-# async def reload_tools(ctx: Context) -> str:
-#     """Notify clients that the tools list has changed."""
-#     await ctx.session.send_notification(
-#         NotificationRequestParams(method="tools/list_changed")
-#     )
-#     return "Client notified of tool updates."
+# async def get_all_fire_incidents(
+#     ctx: Context, start_date: Optional[str] = None, end_date: Optional[str] = None
+# ) -> list[dict]:
+#     """Return all fire incidents of stubble burning (optionally, within a date range) in the format of:
+#         Year,District,Tehsil / Block,Satellite,Latitude,Longitude,ACQ_DATE,ACQ_TIME,Day / Night,Fire Power (W/m2)
+
+#     The raw data is from 1/10/2021 to 9/11/2021.
+
+#     Args:
+#         start_date: The start date of the date range. Format: DD/MM/YYYY
+#         end_date: The end date of the date range.
+
+#     Example:
+#     ```
+#     get_fire_incidents_by_date_range("22/11/2021", "22/11/2021")
+#     ```
+#     """
+#     await ctx.debug(f"start_date: {start_date}")
+#     await ctx.debug(str(df["ACQ_DATE"].values))
+
+#     if start_date:
+#         start = pd.to_datetime(start_date, dayfirst=True)
+#     if end_date:
+#         end = pd.to_datetime(end_date, dayfirst=True)
+
+#     filtered_df = df[df["ACQ_DATE"].notna()]
+
+#     if start_date:
+#         filtered_df = filtered_df[filtered_df["ACQ_DATE"] >= start]
+#     if end_date:
+#         filtered_df = filtered_df[filtered_df["ACQ_DATE"] <= end]
+
+#     filtered_df["ACQ_DATE"] = filtered_df["ACQ_DATE"].dt.strftime("%d/%m/%Y")
+
+#     return json.dumps(filtered_df.to_dict(orient="records"))
+
+
+@mcp.tool()
+async def get_valid_categories(ctx: Context) -> list[str]:
+    """
+    Returns the list of valid event categories that can be used as a filter.
+    """
+    with open("event_categories.json", "r") as f:
+        return json.load(f)
+
+
+@mcp.tool()
+async def get_valid_subcategories(ctx: Context) -> list[str]:
+    """
+    Returns the list of valid event subcategories that can be used as a filter.
+    """
+    with open("event_subcategories.json", "r") as f:
+        return json.load(f)
+
+
+@mcp.tool()
+async def get_valid_event_types(ctx: Context) -> list[str]:
+    """
+    Returns the list of valid event types that can be used as a filter.
+    """
+    with open("event_types.json", "r") as f:
+        return json.load(f)
+
+
+@mcp.tool()
+async def test_db_connection(ctx: Context) -> list[str]:
+    await ctx.debug(f"{DATABASE_URL}")
+    conn: asyncpg.Connection = await get_db_connection()
+    await ctx.debug(f"here2")
+    rows = await conn.fetch("SELECT title FROM tabEvents LIMIT 10")
+    return [row["title"] for row in rows]
+
+
+@mcp.tool()
+async def get_event_points_for_area(
+    ctx: Context,
+    aggregate_by: Literal["district", "state", "hobli", "grama_panchayath"],
+    value: str,
+    start_date: Optional[str] = None,
+    end_date: Optional[str] = None,
+    category: Optional[str] = None,
+    subcategory: Optional[str] = None,
+    type: Optional[str] = None,
+) -> list[dict]:
+    await ctx.debug(f"here")
+    """
+    Returns all individual event points (latitude, longitude) for a given area and filters.
+
+    Parameters:
+        ctx: Internal MCP context (do not supply manually).
+        aggregate_by: Geographic level to match ("district", "state", "hobli", or "grama_panchayath").
+        value: Name of the area to match (e.g., "Ludhiana" if aggregate_by="district").
+        start_date: (Optional, format: DD/MM/YYYY) Start date for filtering event creation.
+        end_date: (Optional, format: DD/MM/YYYY) End date for filtering event creation.
+        category: (Optional) Filter to include only events matching this category.
+                  Use values returned by get_valid_categories().
+        subcategory: (Optional) Filter to include only events matching this subcategory.
+                     Use values returned by get_valid_subcategories().
+        type: (Optional) Filter to include only events matching this event type.
+              Use values returned by get_valid_event_types().
+
+    Returns:
+        A list of dictionaries containing:
+        - latitude, longitude, title, category, subcategory, type, status, description
+    """
+
+    if start_date:
+        start = pd.to_datetime(start_date, dayfirst=True)
+    else:
+        start = datetime(2000, 1, 1)
+
+    if end_date:
+        end = pd.to_datetime(end_date, dayfirst=True)
+    else:
+        end = datetime.today()
+
+    filters = [
+        f"e.creation >= '{start.date().isoformat()}'",
+        f"e.creation <= '{end.date().isoformat()}'",
+        f"l.{aggregate_by} = '{value}'",
+    ]
+    if category:
+        filters.append(f"e.category = '{category}'")
+    if subcategory:
+        filters.append(f"e.subcategory = '{subcategory}'")
+    if type:
+        filters.append(f"e.type = '{type}'")
+
+    where_clause = " AND ".join(filters)
+
+    query = f"""
+    SELECT 
+        e.latitude::float AS latitude,
+        e.longitude::float AS longitude,
+        e.title,
+        e.category,
+        e.subcategory,
+        e.type,
+        e.status,
+        e.description
+    FROM tabEvents e
+    LEFT JOIN tabLocation l ON e.location = l.name
+    WHERE 
+        e.latitude IS NOT NULL
+        AND e.longitude IS NOT NULL
+        AND e.latitude ~ '^[0-9.+-]+$'
+        AND e.longitude ~ '^[0-9.+-]+$'
+        AND {where_clause}
+    LIMIT 500
+    """
+
+    await ctx.debug(f"Query:\n{query}")
+    conn: asyncpg.Connection = await get_db_connection()
+    rows = await conn.fetch(query)
+
+    return [
+        {
+            "latitude": row["latitude"],
+            "longitude": row["longitude"],
+            "title": row["title"],
+            "category": row["category"],
+            "subcategory": row["subcategory"],
+            "type": row["type"],
+            "status": row["status"],
+            "description": row["description"],
+        }
+        for row in rows
+    ]
 
 
 if __name__ == "__main__":
-    mcp.run(transport="sse")
+    mcp.run(transport="streamable-http")
