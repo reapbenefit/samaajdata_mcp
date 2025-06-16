@@ -103,14 +103,30 @@ async def test_db_connection(ctx: Context) -> list[str]:
     await ctx.debug(f"{DATABASE_URL}")
     conn: asyncpg.Connection = await get_db_connection()
     await ctx.debug(f"here2")
-    rows = await conn.fetch("SELECT title FROM tabEvents LIMIT 10")
-    return [row["title"] for row in rows]
+    # rows = await conn.fetch("SELECT title FROM tabEvents LIMIT 10")
+    # await conn.close()
+    # return [row["title"] for row in rows]
+
+    # Get all relations in the database
+    conn = await get_db_connection()
+    relations = await conn.fetch(
+        """
+        SELECT schemaname, tablename, tableowner 
+        FROM pg_tables 
+        WHERE schemaname NOT IN ('information_schema', 'pg_catalog')
+        ORDER BY schemaname, tablename
+    """
+    )
+    await ctx.debug(f"Database relations: {[dict(row) for row in relations]}")
+    await conn.close()
+
+    return [row["tablename"] for row in relations]
 
 
 @mcp.tool()
 async def get_event_points_for_area(
     ctx: Context,
-    aggregate_by: Literal["district", "state", "hobli", "grama_panchayath"],
+    aggregation_level: Literal["district", "state", "hobli", "grama_panchayath"],
     value: str,
     start_date: Optional[str] = None,
     end_date: Optional[str] = None,
@@ -124,8 +140,8 @@ async def get_event_points_for_area(
 
     Parameters:
         ctx: Internal MCP context (do not supply manually).
-        aggregate_by: Geographic level to match ("district", "state", "hobli", or "grama_panchayath").
-        value: Name of the area to match (e.g., "Ludhiana" if aggregate_by="district").
+        aggregation_level: Geographic level to match ("district", "state", "hobli", or "grama_panchayath").
+        value: Name of the area to match (e.g., "Ludhiana" if aggregation_level="district").
         start_date: (Optional, format: DD/MM/YYYY) Start date for filtering event creation.
         end_date: (Optional, format: DD/MM/YYYY) End date for filtering event creation.
         category: (Optional) Filter to include only events matching this category.
@@ -136,8 +152,7 @@ async def get_event_points_for_area(
               Use values returned by get_valid_event_types().
 
     Returns:
-        A list of dictionaries containing:
-        - latitude, longitude, title, category, subcategory, type, status, description
+        A list of tuples containing (latitude, longitude)
     """
 
     if start_date:
@@ -153,7 +168,7 @@ async def get_event_points_for_area(
     filters = [
         f"e.creation >= '{start.date().isoformat()}'",
         f"e.creation <= '{end.date().isoformat()}'",
-        f"l.{aggregate_by} = '{value}'",
+        f"l.{aggregation_level} = '{value}'",
     ]
     if category:
         filters.append(f"e.category = '{category}'")
@@ -164,18 +179,14 @@ async def get_event_points_for_area(
 
     where_clause = " AND ".join(filters)
 
+    await ctx.debug(f"where_clause: {where_clause}")
+
     query = f"""
     SELECT 
         e.latitude::float AS latitude,
-        e.longitude::float AS longitude,
-        e.title,
-        e.category,
-        e.subcategory,
-        e.type,
-        e.status,
-        e.description
-    FROM tabEvents e
-    LEFT JOIN tabLocation l ON e.location = l.name
+        e.longitude::float AS longitude
+    FROM "tabEvents" e
+    LEFT JOIN "tabLocation" l ON e.location = l.name
     WHERE 
         e.latitude IS NOT NULL
         AND e.longitude IS NOT NULL
@@ -187,21 +198,12 @@ async def get_event_points_for_area(
 
     await ctx.debug(f"Query:\n{query}")
     conn: asyncpg.Connection = await get_db_connection()
+
     rows = await conn.fetch(query)
 
-    return [
-        {
-            "latitude": row["latitude"],
-            "longitude": row["longitude"],
-            "title": row["title"],
-            "category": row["category"],
-            "subcategory": row["subcategory"],
-            "type": row["type"],
-            "status": row["status"],
-            "description": row["description"],
-        }
-        for row in rows
-    ]
+    await ctx.debug([(row["latitude"], row["longitude"]) for row in rows])
+
+    return [(row["latitude"], row["longitude"]) for row in rows]
 
 
 if __name__ == "__main__":
