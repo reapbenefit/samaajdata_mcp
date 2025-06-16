@@ -121,7 +121,7 @@ async def test_db_connection(ctx: Context) -> list[str]:
 @mcp.tool()
 async def get_event_points_for_area(
     ctx: Context,
-    aggregation_level: Literal["district", "state", "hobli", "grama_panchayath"],
+    aggregation_level: Literal["district", "state", "hobli_name", "grama_panchayath"],
     value: str,
     start_date: Optional[str] = None,
     end_date: Optional[str] = None,
@@ -134,7 +134,7 @@ async def get_event_points_for_area(
 
     Parameters:
         ctx: Internal MCP context (do not supply manually).
-        aggregation_level: Geographic level to match ("district", "state", "hobli", or "grama_panchayath").
+        aggregation_level: Geographic level to match ("district", "state", "hobli_name", or "grama_panchayath").
         value: Name of the area to match (e.g., "Ludhiana" if aggregation_level="district").
         start_date: (Optional, format: DD/MM/YYYY) Start date for filtering event creation.
         end_date: (Optional, format: DD/MM/YYYY) End date for filtering event creation.
@@ -208,7 +208,7 @@ async def get_spatial_data_clusters(
     subcategory: Optional[str] = None,
     type: Optional[str] = None,
     aggregate_by: Optional[
-        Literal["point", "district", "state", "hobli", "grama_panchayath"]
+        Literal["point", "district", "state", "hobli_name", "grama_panchayath"]
     ] = None,
     aggregation_value: Optional[str] = None,
 ) -> dict:
@@ -222,7 +222,7 @@ async def get_spatial_data_clusters(
     For example:
     - aggregate_by="state" returns: state, district, hobli, grama_panchayath aggregations
     - aggregate_by="district" returns: district, hobli, grama_panchayath aggregations
-    - aggregate_by="hobli" returns: hobli, grama_panchayath aggregations
+    - aggregate_by="hobli_name" returns: hobli_name, grama_panchayath aggregations
 
     Parameters:
         ctx: Internal MCP context (do not supply manually).
@@ -235,7 +235,7 @@ async def get_spatial_data_clusters(
             - "point": raw lat/lon for each issue (no aggregation)
             - "state": grouped by state and all lower levels (district, hobli, grama_panchayath)
             - "district": grouped by district and lower levels (hobli, grama_panchayath)
-            - "hobli": grouped by hobli and lower levels (grama_panchayath)
+            - "hobli_name": grouped by hobli_name and lower levels (grama_panchayath)
             - "grama_panchayath": grouped by grama_panchayath only
             - empty if not provided by the user
         aggregation_value: (Optional) Value to aggregate by. If not provided, all values are returned. If provided, only the data for that value is returned.
@@ -244,7 +244,7 @@ async def get_spatial_data_clusters(
         A dictionary with:
         - data: Dictionary with aggregation levels as keys and their respective data as values
             * If "point": {"point": [{"latitude": float, "longitude": float, "count": int, "location": str}, ...]}
-            * Otherwise: {"state": [...], "district": [...], "hobli": [...], "grama_panchayath": [...]}
+            * Otherwise: {"state": [...], "district": [...], "hobli_name": [...], "grama_panchayath": [...]}
         - meta: Metadata including time range and whether defaults were applied
         - instructions: Message for LLM to explain assumptions and guide the user
     """
@@ -404,6 +404,104 @@ async def get_spatial_data_clusters(
         output["instructions"] = instructions
 
     return output
+
+
+@mcp.tool()
+async def get_event_trend_over_time(
+    ctx: Context,
+    start_date: Optional[str] = None,
+    end_date: Optional[str] = None,
+    category: Optional[str] = None,
+    subcategory: Optional[str] = None,
+    type: Optional[str] = None,
+    interval: Literal["month", "week", "year"] = "month",
+    filter_date_type: Optional[Literal["year", "month"]] = None,
+    filter_date_value: Optional[str] = None,
+    aggregation_level: Optional[
+        Literal["district", "state", "hobli_name", "grama_panchayath"]
+    ] = None,
+    aggregation_value: Optional[str] = None,
+) -> dict:
+    """
+    Returns a time series of event counts to track trends over time, grouped by the given interval.
+
+    Parameters:
+        ctx: Internal MCP context (do not supply manually).
+        start_date: (Optional, format: DD/MM/YYYY) Start date for filtering event creation date.
+        end_date: (Optional, format: DD/MM/YYYY) End date for filtering event creation date.
+        category: (Optional) Filter by event category.
+                  Use values from get_valid_categories().
+        subcategory: (Optional) Filter by event subcategory.
+                     Use values from get_valid_subcategories().
+        type: (Optional) Filter by event type.
+              Use values from get_valid_event_types().
+        interval: Time grouping level. One of "month" (default), "week", or "year".
+        aggregation_level: (Optional) Geographic level to match ("district", "state", "hobli_name", or "grama_panchayath").
+        aggregation_value: (Optional) Name of the area to match (e.g., "Ludhiana" if aggregation_level="district").
+    Returns:
+        A dictionary with:
+        - trend: List of dicts with 'period' and 'count'
+        - meta: Time range used and filters applied
+        - instructions: Message for the LLM to explain results and suggest deeper analysis
+    """
+
+    if start_date:
+        start = pd.to_datetime(start_date, dayfirst=True)
+
+    if end_date:
+        end = pd.to_datetime(end_date, dayfirst=True)
+    else:
+        end = datetime.today()
+
+    filters = []
+    if start_date:
+        filters.append(f"e.creation >= '{start.date().isoformat()}'")
+    if end_date:
+        filters.append(f"e.creation <= '{end.date().isoformat()}'")
+    if category:
+        filters.append(f"e.category = '{category}'")
+    if subcategory:
+        filters.append(f"e.subcategory = '{subcategory}'")
+    if type:
+        filters.append(f"e.type = '{type}'")
+    if aggregation_level:
+        filters.append(f"l.{aggregation_level} = '{aggregation_value}'")
+    if filter_date_type and filter_date_value:
+        if filter_date_type == "year":
+            filters.append(f"EXTRACT(year FROM e.creation) = {filter_date_value}")
+        elif filter_date_type == "month":
+            filters.append(f"to_char(e.creation, 'YYYY-MM') = '{filter_date_value}'")
+
+    where_clause = " AND ".join(filters)
+
+    # Time truncation
+    time_field = {
+        "month": "to_char(date_trunc('month', e.creation), 'YYYY-MM')",
+        "week": "to_char(date_trunc('week', e.creation), 'IYYY-IW')",
+        "year": "to_char(date_trunc('year', e.creation), 'YYYY')",
+    }[interval]
+
+    query = f"""
+    SELECT 
+        {time_field} AS period,
+        COUNT(*) AS count
+    FROM tabEvents e
+    LEFT JOIN "tabLocation" l ON e.location = l.name
+    WHERE {where_clause}
+    GROUP BY period
+    ORDER BY period
+    """
+
+    await ctx.debug(f"Query:\n{query}")
+    conn: asyncpg.Connection = await get_db_connection()
+    rows = await conn.fetch(query)
+
+    trend = [{"period": row["period"], "count": row["count"]} for row in rows]
+
+    return {
+        "trend": trend,
+        "instructions": "Display this as a line or bar chart showing trends over time. Use the 'interval' field to choose the x-axis (month, week, year). You can ask follow-ups like: 'Break this down by location', 'Compare this with sanitation issues', 'Show me peak months of complaints'",
+    }
 
 
 if __name__ == "__main__":
