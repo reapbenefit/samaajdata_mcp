@@ -119,7 +119,7 @@ async def test_db_connection(ctx: Context) -> list[str]:
 
 
 @mcp.tool()
-async def get_event_points_for_area(
+async def get_event_points_for_area_from_samaajdata(
     ctx: Context,
     aggregation_level: Literal["district", "state", "hobli_name", "grama_panchayath"],
     value: str,
@@ -130,7 +130,7 @@ async def get_event_points_for_area(
     type: Optional[str] = None,
 ) -> list[dict]:
     """
-    Returns all individual event points (latitude, longitude) for a given area and filters.
+    Returns all individual event points (latitude, longitude) for a given area and filters from Samaajdata.
 
     Parameters:
         ctx: Internal MCP context (do not supply manually).
@@ -200,7 +200,7 @@ async def get_event_points_for_area(
 
 
 @mcp.tool()
-async def get_spatial_data_clusters(
+async def extract_data_from_samaajdata(
     ctx: Context,
     start_date: Optional[str] = None,
     end_date: Optional[str] = None,
@@ -213,7 +213,7 @@ async def get_spatial_data_clusters(
     aggregation_value: Optional[str] = None,
 ) -> dict:
     """
-    Returns the spatial data on all issues based on filters and desired aggregation level. If aggregate_by is "point", the raw lat/lon for each issue is returned. Otherwise, the data is grouped by the aggregation level and all lower levels in the hierarchy.
+    Returns the spatial data on all issues based on filters and desired aggregation level from Samaajdata. If aggregate_by is "point", the raw lat/lon for each issue is returned. Otherwise, the data is grouped by the aggregation level and all lower levels in the hierarchy.
 
     Aggregation hierarchy (from highest to lowest):
     - state -> district -> hobli -> grama_panchayath -> point
@@ -407,7 +407,7 @@ async def get_spatial_data_clusters(
 
 
 @mcp.tool()
-async def get_event_trend_over_time(
+async def get_event_trend_over_time_from_samaajdata(
     ctx: Context,
     start_date: Optional[str] = None,
     end_date: Optional[str] = None,
@@ -423,7 +423,7 @@ async def get_event_trend_over_time(
     aggregation_value: Optional[str] = None,
 ) -> dict:
     """
-    Returns a time series of event counts to track trends over time, grouped by the given interval.
+    Returns a time series of event counts to track trends over time, grouped by the given interval from Samaajdata.
 
     Parameters:
         ctx: Internal MCP context (do not supply manually).
