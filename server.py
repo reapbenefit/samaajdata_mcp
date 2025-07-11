@@ -34,79 +34,43 @@ async def get_db_connection():
     return conn
 
 
-@mcp.resource("data://event_categories")
-async def event_categories() -> list[str]:
-    with open("event_categories.json", "r") as f:
-        values = json.load(f)
-        return [value["name"] for value in values]
-
-
-# @mcp.tool()
-# async def get_all_fire_incidents(
-#     ctx: Context, start_date: Optional[str] = None, end_date: Optional[str] = None
-# ) -> list[dict]:
-#     """Return all fire incidents of stubble burning (optionally, within a date range) in the format of:
-#         Year,District,Tehsil / Block,Satellite,Latitude,Longitude,ACQ_DATE,ACQ_TIME,Day / Night,Fire Power (W/m2)
-
-#     The raw data is from 1/10/2021 to 9/11/2021.
-
-#     Args:
-#         start_date: The start date of the date range. Format: DD/MM/YYYY
-#         end_date: The end date of the date range.
-
-#     Example:
-#     ```
-#     get_fire_incidents_by_date_range("22/11/2021", "22/11/2021")
-#     ```
-#     """
-#     await ctx.debug(f"start_date: {start_date}")
-#     await ctx.debug(str(df["ACQ_DATE"].values))
-
-#     if start_date:
-#         start = pd.to_datetime(start_date, dayfirst=True)
-#     if end_date:
-#         end = pd.to_datetime(end_date, dayfirst=True)
-
-#     filtered_df = df[df["ACQ_DATE"].notna()]
-
-#     if start_date:
-#         filtered_df = filtered_df[filtered_df["ACQ_DATE"] >= start]
-#     if end_date:
-#         filtered_df = filtered_df[filtered_df["ACQ_DATE"] <= end]
-
-#     filtered_df["ACQ_DATE"] = filtered_df["ACQ_DATE"].dt.strftime("%d/%m/%Y")
-
-#     return json.dumps(filtered_df.to_dict(orient="records"))
-
-
 @mcp.tool()
-async def get_valid_categories(ctx: Context) -> str:
+async def get_valid_categories(ctx: Context) -> list[str]:
     """
     Returns the list of valid issue/action/event categories that can be used as a filter. If the user query requires filtering for specific category of issue/action/event, use this method to get the list of valid categories to pick from
     """
-    with open("event_categories.json", "r") as f:
-        values = json.load(f)
-        return ", ".join([value["name"] for value in values])
+    conn: asyncpg.Connection = await get_db_connection()
+
+    query = 'SELECT * from "tabEvent Category"'
+    rows = await conn.fetch(query)
+
+    return [row["name"] for row in rows]
 
 
 @mcp.tool()
-async def get_valid_subcategories(ctx: Context) -> str:
+async def get_valid_subcategories(ctx: Context) -> list[str]:
     """
     Returns the list of valid issue/action/event subcategories that can be used as a filter. If the user query requires filtering for specific subcategory of issue/action/event, use this method to get the list of valid subcategories to pick from. Only pick this if the category is also picked and the user query requires further filtering beyond category.
     """
-    with open("event_subcategories.json", "r") as f:
-        values = json.load(f)
-        return ", ".join([value["name"] for value in values])
+    conn: asyncpg.Connection = await get_db_connection()
+
+    query = 'SELECT * from "tabEvent Sub Category"'
+    rows = await conn.fetch(query)
+
+    return [row["name"] for row in rows]
 
 
 @mcp.tool()
-async def get_valid_event_types(ctx: Context) -> str:
+async def get_valid_event_types(ctx: Context) -> list[str]:
     """
     Returns the list of valid issue/action/event types that can be used as a filter. If the user query requires filtering for specific type of issue/action/event, use this method to get the list of valid types to pick from.
     """
-    with open("event_types.json", "r") as f:
-        values = json.load(f)
-        return ", ".join([value["name"] for value in values])
+    conn: asyncpg.Connection = await get_db_connection()
+
+    query = 'SELECT * from "tabEvent Type"'
+    rows = await conn.fetch(query)
+
+    return [row["name"] for row in rows]
 
 
 @mcp.tool()
