@@ -128,7 +128,7 @@ async def get_event_points_for_area_from_samaajdata(
     category: Optional[str] = None,
     subcategory: Optional[str] = None,
     type: Optional[str] = None,
-) -> list[dict]:
+) -> dict:
     """
     Returns all individual event points (latitude, longitude) for a given area and filters from Samaajdata.
 
@@ -146,7 +146,7 @@ async def get_event_points_for_area_from_samaajdata(
               Use values returned by get_valid_event_types().
 
     Returns:
-        A list of tuples containing (latitude, longitude)
+        A dictionary with the key "latlong" containing the list of tuples - [(latitude, longitude)]
     """
 
     if start_date:
@@ -194,9 +194,10 @@ async def get_event_points_for_area_from_samaajdata(
 
     rows = await conn.fetch(query)
 
-    await ctx.debug([(row["latitude"], row["longitude"]) for row in rows])
-
-    return [(row["latitude"], row["longitude"]) for row in rows]
+    return {
+        "latlong": [(row["latitude"], row["longitude"]) for row in rows],
+        "description": "For the given query, the lat/long of the event points have been returned. You can use this to display a scatter plot on a map.",
+    }
 
 
 @mcp.tool()
@@ -481,6 +482,8 @@ async def get_event_trend_over_time_from_samaajdata(
         "year": "to_char(date_trunc('year', e.creation), 'YYYY')",
     }[interval]
 
+    await ctx.debug(f"where_clause: {where_clause}")
+
     query = f"""
     SELECT 
         {time_field} AS period,
@@ -493,6 +496,7 @@ async def get_event_trend_over_time_from_samaajdata(
     """
 
     await ctx.debug(f"Query:\n{query}")
+
     conn: asyncpg.Connection = await get_db_connection()
     rows = await conn.fetch(query)
 

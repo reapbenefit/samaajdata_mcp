@@ -2,3 +2,6 @@ mcp
 pandas
 fastmcp 
 asyncpg
+fastapi
+openai-agents
+uvicorn
