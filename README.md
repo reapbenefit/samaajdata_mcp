@@ -36,14 +36,21 @@ DATABASE_URL=postgresql://<username>:<password>@localhost:<forwarded_port>/<data
 python server.py
 ```
 
+To access the server, go to http://localhost:8000/sse/
+
 Running Inspector for debugging:
 
 ```bash
 mcp dev server.py
 ```
 
-## Accessing the server
+## Running the agent API
 
 ```bash
-http://localhost:8000/mcp/
+uvicorn agent:app --reload --port 8004
 ```
+
+To access the agent API docs, go to http://localhost:8004/docs
+
+
+
