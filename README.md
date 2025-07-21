@@ -15,20 +15,7 @@ source venv/bin/activate
 ```bash
 pip install -r requirements.txt
 ```
-- Set up .env file
-
-Since our database is hosted on RDS which needs to be accessed via a SSH tunnel, first setup the tunnel on a terminal:
-
-```bash
-ssh -i /path/to/creds.pem -N -L 54320:DB_HOST:5432 -p SSH_PORT user@EC2_INSTANCE_IP
-```
-
-```bash
-DATABASE_URL=postgresql://<username>:<password>@localhost:<forwarded_port>/<database_name>
-```
-
-`forwarded_port` is the port on which the tunnel is running (i.e. 54320 in the example above).
-
+- Copy `.env.example` to `.env` and fill in the empty values.
 
 ## Running the server
 
@@ -44,7 +31,7 @@ Running Inspector for debugging:
 mcp dev server.py
 ```
 
-## Running the agent API
+## Running the agent API locally
 
 ```bash
 uvicorn agent:app --reload --port 8004
@@ -53,4 +40,10 @@ uvicorn agent:app --reload --port 8004
 To access the agent API docs, go to http://localhost:8004/docs
 
 
+## Running the agent API on production
 
+```bash
+uvicorn agent:app --reload --port 8004 --host 0.0.0.0
+```
+
+To access the agent API docs, go to http://localhost:8004/agent/docs
