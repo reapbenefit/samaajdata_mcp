@@ -9,7 +9,7 @@ load_dotenv()
 
 from agents import Agent, HostedMCPTool, Runner
 
-if os.getenv("ENV") == "development":
+if os.getenv("ENV") != "development":
     root_path = "/agent"
 else:
     root_path = "/"
