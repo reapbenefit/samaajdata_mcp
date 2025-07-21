@@ -1,6 +1,6 @@
 from agents import Agent, InputGuardrail, GuardrailFunctionOutput, Runner
 from pydantic import BaseModel, Field
-import asyncio
+import os
 from dotenv import load_dotenv
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
@@ -9,7 +9,12 @@ load_dotenv()
 
 from agents import Agent, HostedMCPTool, Runner
 
-app = FastAPI()
+if os.getenv("ENV") == "development":
+    root_path = "/agent"
+else:
+    root_path = "/"
+
+app = FastAPI(root_path=root_path)
 
 app.add_middleware(
     CORSMiddleware,
@@ -51,8 +56,12 @@ async def input_guardrail(ctx, agent, input_data):
     )
 
 
+class QueryRequest(BaseModel):
+    query: str
+
+
 @app.post("/respond")
-async def answer_query(query: str):
+async def answer_query(request: QueryRequest):
     agent = Agent(
         name="Samaajdata Assistant",
         instructions="You are a helpful assistant that can answer questions about samaajdata using the tools provided. It is possible that the user's query is very vague and you need to use the tools in multiple steps to answer the question. Try your absolute best to answer the question even if it does not have a lot of details by repeatedly using the appropriate tools out of the ones provided, reflecting on the outputs of the previous steps and analysing if using the tools again can help you answer the question. If you are not sure about the answer, you can say so and ask the user to provide more details. But do this only after you have exhaustively explored all the possibilities through the tools provided.",
@@ -72,6 +81,6 @@ async def answer_query(query: str):
         ],
     )
 
-    result = await Runner.run(agent, query)
+    result = await Runner.run(agent, request.query)
 
     return result.final_output
