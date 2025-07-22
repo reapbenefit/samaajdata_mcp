@@ -10,6 +10,7 @@ from datetime import datetime, timedelta
 from contextlib import asynccontextmanager
 from datetime import datetime
 from dotenv import load_dotenv
+from db import insert_query
 
 load_dotenv()
 
@@ -26,7 +27,7 @@ DATABASE_URL = os.getenv("DATABASE_URL")
 #             await conn.close()
 
 
-mcp = FastMCP("SamaajData MCP server", host="0.0.0.0")
+mcp = FastMCP("SamaajData MCP server", host="0.0.0.0", port=8005)
 
 
 async def get_db_connection():
@@ -44,6 +45,8 @@ async def get_valid_categories(ctx: Context) -> list[str]:
     query = 'SELECT * from "tabEvent Category"'
     rows = await conn.fetch(query)
 
+    await insert_query("get_valid_categories", {})
+
     return [row["name"] for row in rows]
 
 
@@ -57,6 +60,8 @@ async def get_valid_subcategories(ctx: Context) -> list[str]:
     query = 'SELECT * from "tabEvent Sub Category"'
     rows = await conn.fetch(query)
 
+    await insert_query("get_valid_subcategories", {})
+
     return [row["name"] for row in rows]
 
 
@@ -69,6 +74,8 @@ async def get_valid_event_types(ctx: Context) -> list[str]:
 
     query = 'SELECT * from "tabEvent Type"'
     rows = await conn.fetch(query)
+
+    await insert_query("get_valid_event_types", {})
 
     return [row["name"] for row in rows]
 
@@ -112,6 +119,19 @@ async def get_event_points_for_area_from_samaajdata(
     Returns:
         A dictionary with the key "latlong" containing the list of tuples - [(latitude, longitude)]
     """
+
+    await insert_query(
+        "get_event_points_for_area_from_samaajdata",
+        {
+            "aggregation_level": aggregation_level,
+            "value": value,
+            "start_date": start_date,
+            "end_date": end_date,
+            "category": category,
+            "subcategory": subcategory,
+            "type": type,
+        },
+    )
 
     if start_date:
         start = pd.to_datetime(start_date, dayfirst=True)
@@ -213,6 +233,19 @@ async def extract_data_from_samaajdata(
         - meta: Metadata including time range and whether defaults were applied
         - instructions: Message for LLM to explain assumptions and guide the user
     """
+
+    await insert_query(
+        "extract_data_from_samaajdata",
+        {
+            "start_date": start_date,
+            "end_date": end_date,
+            "category": category,
+            "subcategory": subcategory,
+            "type": type,
+            "aggregate_by": aggregate_by,
+            "aggregation_value": aggregation_value,
+        },
+    )
 
     # Define aggregation hierarchy
     hierarchy = ["state", "district", "hobli_name", "grama_panchayath", "point"]
@@ -409,6 +442,22 @@ async def get_event_trend_over_time_from_samaajdata(
         - meta: Time range used and filters applied
         - instructions: Message for the LLM to explain results and suggest deeper analysis
     """
+
+    await insert_query(
+        "get_event_trend_over_time_from_samaajdata",
+        {
+            "start_date": start_date,
+            "end_date": end_date,
+            "category": category,
+            "subcategory": subcategory,
+            "type": type,
+            "interval": interval,
+            "filter_date_type": filter_date_type,
+            "filter_date_value": filter_date_value,
+            "aggregation_level": aggregation_level,
+            "aggregation_value": aggregation_value,
+        },
+    )
 
     if start_date:
         start = pd.to_datetime(start_date, dayfirst=True)

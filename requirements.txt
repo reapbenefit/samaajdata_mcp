@@ -5,3 +5,4 @@ asyncpg
 fastapi
 openai-agents
 uvicorn
+aiosqlite
