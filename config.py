@@ -1,8 +1,8 @@
 import os
 from os.path import dirname, abspath, exists
 
-if exists("/appdata"):
-    data_root_dir = "/appdata"
+if exists("/mcpdata"):
+    data_root_dir = "/mcpdata"
 else:
     root_dir = dirname(abspath(__file__))
     data_root_dir = f"{root_dir}/db"

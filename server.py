@@ -27,7 +27,7 @@ DATABASE_URL = os.getenv("DATABASE_URL")
 #             await conn.close()
 
 
-mcp = FastMCP("SamaajData MCP server", host="0.0.0.0", port=8005)
+mcp = FastMCP("SamaajData MCP server", host="0.0.0.0")
 
 
 async def get_db_connection():
