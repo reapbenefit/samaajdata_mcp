@@ -521,5 +521,129 @@ async def get_event_trend_over_time_from_samaajdata(
     }
 
 
+@mcp.tool()
+async def get_video_volunteers_data(
+    ctx: Context,
+    start_date: Optional[str] = None,
+    end_date: Optional[str] = None,
+    city: Optional[str] = None,
+    district: Optional[str] = None,
+    state: Optional[str] = None,
+    aggregate_by: Optional[Literal["city", "district", "state"]] = None,
+) -> list[dict]:
+    """
+    Returns data about Video Volunteers on SamaajData.
+    This data refers to events where:
+      - Sub category is 'Citizen Initiatives'
+      - Hours invested is 0
+      - Location is set (not null)
+    Supports filtering by start/end date, city, district, state, and aggregation by city/district/state.
+    """
+    conn: asyncpg.Connection = await get_db_connection()
+
+    filters = [
+        "e.subcategory = 'Citizen Initiatives'",
+        "(e.hours_invested = 0 OR e.hours_invested = 0.0 OR e.hours_invested = '0.000')",
+        "e.location IS NOT NULL",
+    ]
+
+    if start_date:
+        try:
+            start_dt = datetime.strptime(start_date, "%d/%m/%Y")
+            filters.append(f"e.creation >= '{start_dt.date().isoformat()}'")
+        except Exception:
+            pass
+    if end_date:
+        try:
+            end_dt = datetime.strptime(end_date, "%d/%m/%Y")
+            filters.append(f"e.creation <= '{end_dt.date().isoformat()}'")
+        except Exception:
+            pass
+    if city:
+        filters.append(f"l.city = '{city}'")
+    if district:
+        filters.append(f"l.district = '{district}'")
+    if state:
+        filters.append(f"l.state = '{state}'")
+
+    where_clause = " AND ".join(filters)
+
+    select_fields = [
+        "e.name",
+        "e.category",
+        "e.description",
+        "e.subcategory",
+        "e.type",
+        "e.hours_invested",
+        "e.location",
+        "l.district",
+        "l.state",
+        "e.creation",
+    ]
+    group_by_fields = []
+
+    if aggregate_by == "city":
+        select_fields = ["l.city", "COUNT(*) AS count"]
+        group_by_fields = ["l.city"]
+    elif aggregate_by == "district":
+        select_fields = ["l.district", "COUNT(*) AS count"]
+        group_by_fields = ["l.district"]
+    elif aggregate_by == "state":
+        select_fields = ["l.state", "COUNT(*) AS count"]
+        group_by_fields = ["l.state"]
+
+    select_clause = ", ".join(select_fields)
+    group_by_clause = (
+        f"GROUP BY {', '.join(group_by_fields)}" if group_by_fields else ""
+    )
+
+    query = f"""
+    SELECT 
+        {select_clause}
+    FROM tabEvents e
+    LEFT JOIN "tabLocation" l ON e.location = l.name
+    WHERE {where_clause}
+    {group_by_clause}
+    LIMIT 100
+    """
+
+    await insert_query(
+        "get_video_volunteers_data",
+        {
+            "start_date": start_date,
+            "end_date": end_date,
+            "city": city,
+            "district": district,
+            "state": state,
+            "aggregate_by": aggregate_by,
+        },
+    )
+
+    rows = await conn.fetch(query)
+
+    if aggregate_by in ("city", "district", "state"):
+        # Return aggregation
+        return [
+            {aggregate_by: row[aggregate_by], "count": row["count"]} for row in rows
+        ]
+    else:
+        # Return as list of dicts
+        return [
+            {
+                "name": row["name"],
+                "category": row["category"],
+                "description": row["description"],
+                "subcategory": row["subcategory"],
+                "type": row["type"],
+                "hours_invested": row["hours_invested"],
+                "location": row["location"],
+                "district": row["district"],
+                "state": row["state"],
+                "creation": row["creation"].isoformat() if row["creation"] else None,
+            }
+            for row in rows
+        ]
+
+
 if __name__ == "__main__":
     mcp.run(transport="sse")
