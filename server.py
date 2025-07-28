@@ -604,7 +604,7 @@ async def get_video_volunteers_data(
     LEFT JOIN "tabLocation" l ON e.location = l.name
     WHERE {where_clause}
     {group_by_clause}
-    LIMIT 100
+    LIMIT 1000
     """
 
     await insert_query(
