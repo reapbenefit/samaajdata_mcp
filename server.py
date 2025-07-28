@@ -103,6 +103,11 @@ async def get_event_points_for_area_from_samaajdata(
     """
     Returns all individual event points (latitude, longitude) for a given area and filters from Samaajdata.
 
+    For any data requested for video volunteers, always apply the following base filters on top of which other filters can be applied:
+    - event.subcategory = 'Citizen Initiatives'
+    - (event.hours_invested = 0 OR event.hours_invested = 0.0 OR event.hours_invested = '0.000')
+    - event.location IS NOT NULL
+
     Parameters:
         ctx: Internal MCP context (do not supply manually).
         aggregation_level: Geographic level to match ("district", "state", "hobli_name", or "grama_panchayath").
@@ -208,6 +213,11 @@ async def extract_data_from_samaajdata(
     - aggregate_by="state" returns: state, district, hobli, grama_panchayath aggregations
     - aggregate_by="district" returns: district, hobli, grama_panchayath aggregations
     - aggregate_by="hobli_name" returns: hobli_name, grama_panchayath aggregations
+
+    For any data requested for video volunteers, always apply the following base filters on top of which other filters can be applied:
+    - event.subcategory = 'Citizen Initiatives'
+    - (event.hours_invested = 0 OR event.hours_invested = 0.0 OR event.hours_invested = '0.000')
+    - event.location IS NOT NULL
 
     Parameters:
         ctx: Internal MCP context (do not supply manually).
@@ -422,6 +432,11 @@ async def get_event_trend_over_time_from_samaajdata(
 ) -> dict:
     """
     Returns a time series of event counts to track trends over time, grouped by the given interval from Samaajdata.
+
+    For any data requested for video volunteers, always apply the following base filters on top of which other filters can be applied:
+    - event.subcategory = 'Citizen Initiatives'
+    - (event.hours_invested = 0 OR event.hours_invested = 0.0 OR event.hours_invested = '0.000')
+    - event.location IS NOT NULL
 
     Parameters:
         ctx: Internal MCP context (do not supply manually).
