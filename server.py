@@ -574,7 +574,6 @@ async def get_video_volunteers_data(
         "e.description",
         "e.subcategory",
         "e.type",
-        "e.hours_invested",
         "e.location",
         "l.district",
         "l.state",
@@ -604,7 +603,7 @@ async def get_video_volunteers_data(
     LEFT JOIN "tabLocation" l ON e.location = l.name
     WHERE {where_clause}
     {group_by_clause}
-    LIMIT 1000
+    LIMIT 100
     """
 
     await insert_query(
@@ -635,7 +634,6 @@ async def get_video_volunteers_data(
                 "description": row["description"],
                 "subcategory": row["subcategory"],
                 "type": row["type"],
-                "hours_invested": row["hours_invested"],
                 "location": row["location"],
                 "district": row["district"],
                 "state": row["state"],
@@ -643,6 +641,66 @@ async def get_video_volunteers_data(
             }
             for row in rows
         ]
+
+
+@mcp.tool()
+async def get_video_volunteer_count(
+    start_date: Optional[str] = None,
+    end_date: Optional[str] = None,
+    city: Optional[str] = None,
+    district: Optional[str] = None,
+    state: Optional[str] = None,
+) -> dict:
+    """
+    Returns the count of video volunteers on SamaajData.
+    """
+
+    conn: asyncpg.Connection = await get_db_connection()
+
+    where_clauses = []
+    params = {}
+
+    if start_date:
+        where_clauses.append("e.creation >= $1")
+        params["start_date"] = start_date
+    if end_date:
+        where_clauses.append("e.creation <= $2")
+        params["end_date"] = end_date
+    if city:
+        where_clauses.append("l.city = $3")
+        params["city"] = city
+    if district:
+        where_clauses.append("l.district = $4")
+        params["district"] = district
+    if state:
+        where_clauses.append("l.state = $5")
+        params["state"] = state
+
+    # Apply the basic filters as above to get the whole set of VV data
+    where_clauses.append("e.subcategory = 'Citizen Initiatives'")
+    where_clauses.append(
+        "(e.hours_invested = 0 OR e.hours_invested = 0.0 OR e.hours_invested = '0.000')"
+    )
+    where_clauses.append("e.location IS NOT NULL")
+
+    where_clause = " AND ".join(where_clauses) if where_clauses else "1=1"
+
+    query = f"""
+        SELECT COUNT(*) as count
+        FROM tabEvents e
+        LEFT JOIN "tabLocation" l ON e.location = l.name
+        WHERE {where_clause}
+    """
+
+    # The connection object 'conn' should be available in your context
+    # Adjust parameter passing as per your DB driver
+    values = []
+    for key in ["start_date", "end_date", "city", "district", "state"]:
+        if key in params:
+            values.append(params[key])
+
+    count_row = await conn.fetchrow(query, *values)
+    return {"count": count_row["count"] if count_row else 0}
 
 
 if __name__ == "__main__":
