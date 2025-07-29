@@ -721,6 +721,336 @@ async def get_video_volunteer_count(
 
 
 @mcp.tool()
+async def get_trees_data_count(
+    start_date: Optional[str] = None,
+    end_date: Optional[str] = None,
+    city: Optional[str] = None,
+    district: Optional[str] = None,
+    state: Optional[str] = None,
+) -> dict:
+    """
+    Returns the count of trees data on SamaajData.
+    This data refers to events where:
+      - Sub category is 'Trees'
+      - Hours invested is 0
+      - Location is set (not null)
+    """
+
+    conn: asyncpg.Connection = await get_db_connection()
+
+    where_clauses = []
+    params = {}
+
+    if start_date:
+        where_clauses.append("e.creation >= $1")
+        params["start_date"] = start_date
+    if end_date:
+        where_clauses.append("e.creation <= $2")
+        params["end_date"] = end_date
+    if city:
+        where_clauses.append("l.city = $3")
+        params["city"] = city
+    if district:
+        where_clauses.append("l.district = $4")
+        params["district"] = district
+    if state:
+        where_clauses.append("l.state = $5")
+        params["state"] = state
+
+    # Apply the basic filters to get the trees data
+    where_clauses.append("e.subcategory = 'Trees'")
+    where_clauses.append(
+        "(e.hours_invested = 0 OR e.hours_invested = 0.0 OR e.hours_invested = '0.000')"
+    )
+    where_clauses.append("e.location IS NOT NULL")
+
+    where_clause = " AND ".join(where_clauses) if where_clauses else "1=1"
+
+    query = f"""
+        SELECT COUNT(*) as count
+        FROM tabEvents e
+        LEFT JOIN "tabLocation" l ON e.location = l.name
+        WHERE {where_clause}
+    """
+
+    # The connection object 'conn' should be available in your context
+    # Adjust parameter passing as per your DB driver
+    values = []
+    for key in ["start_date", "end_date", "city", "district", "state"]:
+        if key in params:
+            values.append(params[key])
+
+    count_row = await conn.fetchrow(query, *values)
+    return {"count": count_row["count"] if count_row else 0}
+
+
+@mcp.tool()
+async def get_trees_girth_values(
+    ctx: Context,
+    start_date: Optional[str] = None,
+    end_date: Optional[str] = None,
+    city: Optional[str] = None,
+    district: Optional[str] = None,
+    state: Optional[str] = None,
+) -> dict:
+    """
+    Returns all girth values in centimeters from Trees data where girth is non-empty.
+
+    This data refers to events where:
+      - Sub category is 'Trees'
+      - Hours invested is 0
+      - Location is set (not null)
+
+    Parameters:
+        ctx: Internal MCP context (do not supply manually).
+        start_date: (Optional, format: DD/MM/YYYY) Start date for filtering event creation.
+        end_date: (Optional, format: DD/MM/YYYY) End date for filtering event creation.
+        city: (Optional) Filter by city.
+        district: (Optional) Filter by district.
+        state: (Optional) Filter by state.
+
+    Returns:
+        dict: {"values": [float, ...]}
+    """
+
+    conn: asyncpg.Connection = await get_db_connection()
+
+    filters = [
+        "e.subcategory = 'Trees'",
+        "(e.hours_invested = 0 OR e.hours_invested = 0.0 OR e.hours_invested = '0.000')",
+        "e.location IS NOT NULL",
+    ]
+
+    if start_date:
+        try:
+            start_dt = datetime.strptime(start_date, "%d/%m/%Y")
+            filters.append(f"e.creation >= '{start_dt.date().isoformat()}'")
+        except Exception:
+            pass
+    if end_date:
+        try:
+            end_dt = datetime.strptime(end_date, "%d/%m/%Y")
+            filters.append(f"e.creation <= '{end_dt.date().isoformat()}'")
+        except Exception:
+            pass
+    if city:
+        filters.append(f"l.city = '{city}'")
+    if district:
+        filters.append(f"l.district = '{district}'")
+    if state:
+        filters.append(f"l.state = '{state}'")
+
+    where_clause = " AND ".join(filters)
+
+    query = f"""
+        SELECT e.description
+        FROM tabEvents e
+        LEFT JOIN "tabLocation" l ON e.location = l.name
+        WHERE {where_clause}
+    """
+
+    rows = await conn.fetch(query)
+
+    # Regex pattern for extracting Girth
+    girth_pattern = re.compile(r"Girth in cm:\s*(.*?)<br>", re.IGNORECASE | re.DOTALL)
+
+    results = []
+    for row in rows:
+        desc = row["description"] or ""
+        girth_match = girth_pattern.search(desc)
+        girth_val = girth_match.group(1).strip() if girth_match else ""
+
+        if girth_val and girth_val.lower() != "data unavailable":
+            results.append(float(girth_val))
+
+    await conn.close()
+
+    # Sample if too many results
+    if len(results) > 1000:
+        results = random.sample(results, 1000)
+
+    return {"values": results}
+
+
+@mcp.tool()
+async def get_trees_height_values(
+    ctx: Context,
+    start_date: Optional[str] = None,
+    end_date: Optional[str] = None,
+    city: Optional[str] = None,
+    district: Optional[str] = None,
+    state: Optional[str] = None,
+) -> dict:
+    """
+    Returns all height values in meters from Trees data where height is non-empty.
+
+    This data refers to events where:
+      - Sub category is 'Trees'
+      - Hours invested is 0
+      - Location is set (not null)
+
+    Parameters:
+        ctx: Internal MCP context (do not supply manually).
+        start_date: (Optional, format: DD/MM/YYYY) Start date for filtering event creation.
+        end_date: (Optional, format: DD/MM/YYYY) End date for filtering event creation.
+        city: (Optional) Filter by city.
+        district: (Optional) Filter by district.
+        state: (Optional) Filter by state.
+
+    Returns:
+        dict: {"values": [float, ...]}
+    """
+
+    conn: asyncpg.Connection = await get_db_connection()
+
+    filters = [
+        "e.subcategory = 'Trees'",
+        "(e.hours_invested = 0 OR e.hours_invested = 0.0 OR e.hours_invested = '0.000')",
+        "e.location IS NOT NULL",
+    ]
+
+    if start_date:
+        try:
+            start_dt = datetime.strptime(start_date, "%d/%m/%Y")
+            filters.append(f"e.creation >= '{start_dt.date().isoformat()}'")
+        except Exception:
+            pass
+    if end_date:
+        try:
+            end_dt = datetime.strptime(end_date, "%d/%m/%Y")
+            filters.append(f"e.creation <= '{end_dt.date().isoformat()}'")
+        except Exception:
+            pass
+    if city:
+        filters.append(f"l.city = '{city}'")
+    if district:
+        filters.append(f"l.district = '{district}'")
+    if state:
+        filters.append(f"l.state = '{state}'")
+
+    where_clause = " AND ".join(filters)
+
+    query = f"""
+        SELECT e.description
+        FROM tabEvents e
+        LEFT JOIN "tabLocation" l ON e.location = l.name
+        WHERE {where_clause}
+    """
+
+    rows = await conn.fetch(query)
+
+    # Regex pattern for extracting Height
+    height_pattern = re.compile(r"Height in m:\s*(.*?)<br>", re.IGNORECASE | re.DOTALL)
+
+    results = []
+    for row in rows:
+        desc = row["description"] or ""
+        height_match = height_pattern.search(desc)
+        height_val = height_match.group(1).strip() if height_match else ""
+
+        if height_val and height_val.lower() != "data unavailable":
+            results.append(float(height_val))
+
+    await conn.close()
+
+    # Sample if too many results
+    if len(results) > 1000:
+        results = random.sample(results, 1000)
+
+    return {"values": results}
+
+
+@mcp.tool()
+async def get_trees_canopy_diameter_values(
+    ctx: Context,
+    start_date: Optional[str] = None,
+    end_date: Optional[str] = None,
+    city: Optional[str] = None,
+    district: Optional[str] = None,
+    state: Optional[str] = None,
+) -> dict:
+    """
+    Returns all canopy diameter values in meters from Trees data where canopy diameter is non-empty.
+
+    This data refers to events where:
+      - Sub category is 'Trees'
+      - Hours invested is 0
+      - Location is set (not null)
+
+    Parameters:
+        ctx: Internal MCP context (do not supply manually).
+        start_date: (Optional, format: DD/MM/YYYY) Start date for filtering event creation.
+        end_date: (Optional, format: DD/MM/YYYY) End date for filtering event creation.
+        city: (Optional) Filter by city.
+        district: (Optional) Filter by district.
+        state: (Optional) Filter by state.
+
+    Returns:
+        dict: {"values": [float, ...]}
+    """
+
+    conn: asyncpg.Connection = await get_db_connection()
+
+    filters = [
+        "e.subcategory = 'Trees'",
+        "(e.hours_invested = 0 OR e.hours_invested = 0.0 OR e.hours_invested = '0.000')",
+        "e.location IS NOT NULL",
+    ]
+
+    if start_date:
+        try:
+            start_dt = datetime.strptime(start_date, "%d/%m/%Y")
+            filters.append(f"e.creation >= '{start_dt.date().isoformat()}'")
+        except Exception:
+            pass
+    if end_date:
+        try:
+            end_dt = datetime.strptime(end_date, "%d/%m/%Y")
+            filters.append(f"e.creation <= '{end_dt.date().isoformat()}'")
+        except Exception:
+            pass
+    if city:
+        filters.append(f"l.city = '{city}'")
+    if district:
+        filters.append(f"l.district = '{district}'")
+    if state:
+        filters.append(f"l.state = '{state}'")
+
+    where_clause = " AND ".join(filters)
+
+    query = f"""
+        SELECT e.description
+        FROM tabEvents e
+        LEFT JOIN "tabLocation" l ON e.location = l.name
+        WHERE {where_clause}
+    """
+
+    rows = await conn.fetch(query)
+
+    # Regex pattern for extracting Canopy Diameter
+    canopy_pattern = re.compile(
+        r"Canopy Diameter in m:\s*(.*?)<br>", re.IGNORECASE | re.DOTALL
+    )
+
+    results = []
+    for row in rows:
+        desc = row["description"] or ""
+        canopy_match = canopy_pattern.search(desc)
+        canopy_val = canopy_match.group(1).strip() if canopy_match else ""
+
+        if canopy_val and canopy_val.lower() != "data unavailable":
+            results.append(float(canopy_val))
+
+    await conn.close()
+
+    # Sample if too many results
+    if len(results) > 1000:
+        results = random.sample(results, 1000)
+
+    return {"values": results}
+
+
+@mcp.tool()
 async def get_video_volunteers_community_engagement_insights(
     ctx: Context,
     start_date: Optional[str] = None,
