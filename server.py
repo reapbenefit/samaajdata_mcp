@@ -11,6 +11,8 @@ from contextlib import asynccontextmanager
 from datetime import datetime
 from dotenv import load_dotenv
 from db import insert_query
+import re
+import random
 
 load_dotenv()
 
@@ -716,6 +718,591 @@ async def get_video_volunteer_count(
 
     count_row = await conn.fetchrow(query, *values)
     return {"count": count_row["count"] if count_row else 0}
+
+
+@mcp.tool()
+async def get_video_volunteers_community_engagement_insights(
+    ctx: Context,
+    start_date: Optional[str] = None,
+    end_date: Optional[str] = None,
+    city: Optional[str] = None,
+    district: Optional[str] = None,
+    state: Optional[str] = None,
+) -> list[dict]:
+    """
+    Returns insights on video topics with most community engagement for Video Volunteers data.
+
+    This tool fetches all events matching the Video Volunteers (VV) data filter:
+      - Sub category is 'Citizen Initiatives'
+      - Hours invested is 0 (or 0.0 or '0.000')
+      - Location is set (not null)
+      - Optional filters: start_date, end_date, city, district, state
+
+    The output is a list of dicts with 'issue_addressed' and 'people_impacted' for each row where both are non-empty.
+
+    Parameters:
+        ctx: Internal MCP context (do not supply manually).
+        start_date: (Optional, format: DD/MM/YYYY) Start date for filtering event creation.
+        end_date: (Optional, format: DD/MM/YYYY) End date for filtering event creation.
+        city: (Optional) Filter by city.
+        district: (Optional) Filter by district.
+        state: (Optional) Filter by state.
+
+    Returns:
+        List of dicts: [{"issue_addressed": str, "people_impacted": str}, ...]
+    """
+
+    conn: asyncpg.Connection = await get_db_connection()
+
+    filters = [
+        "e.subcategory = 'Citizen Initiatives'",
+        "(e.hours_invested = 0 OR e.hours_invested = 0.0 OR e.hours_invested = '0.000')",
+        "e.location IS NOT NULL",
+    ]
+
+    if start_date:
+        try:
+            start_dt = datetime.strptime(start_date, "%d/%m/%Y")
+            filters.append(f"e.creation >= '{start_dt.date().isoformat()}'")
+        except Exception:
+            pass
+    if end_date:
+        try:
+            end_dt = datetime.strptime(end_date, "%d/%m/%Y")
+            filters.append(f"e.creation <= '{end_dt.date().isoformat()}'")
+        except Exception:
+            pass
+    if city:
+        filters.append(f"l.city = '{city}'")
+    if district:
+        filters.append(f"l.district = '{district}'")
+    if state:
+        filters.append(f"l.state = '{state}'")
+
+    where_clause = " AND ".join(filters)
+
+    query = f"""
+        SELECT e.description
+        FROM tabEvents e
+        LEFT JOIN "tabLocation" l ON e.location = l.name
+        WHERE {where_clause}
+    """
+
+    rows = await conn.fetch(query)
+
+    # Regex patterns for extracting Issue(s) Addressed and People Impacted
+    issue_pattern = re.compile(
+        r"Issue\(s\) Addressed:\s*(.*?)<br>", re.IGNORECASE | re.DOTALL
+    )
+    people_pattern = re.compile(
+        r"People Impacted:\s*(.*?)<br>", re.IGNORECASE | re.DOTALL
+    )
+
+    results = []
+    for row in rows:
+        desc = row["description"] or ""
+        issue_match = issue_pattern.search(desc)
+        people_match = people_pattern.search(desc)
+        issue_val = issue_match.group(1).strip() if issue_match else ""
+        people_val = people_match.group(1).strip() if people_match else ""
+        # Only include if both are non-empty and not "Data unavailable"
+        if (
+            issue_val
+            and people_val
+            and issue_val.lower() != "data unavailable"
+            and people_val.lower() != "data unavailable"
+        ):
+            results.append(
+                {
+                    "issue_addressed": issue_val,
+                    "people_impacted": people_val,
+                }
+            )
+
+    await conn.close()
+    return results
+
+
+@mcp.tool()
+async def get_video_volunteers_deployment_impact_insights(
+    ctx: Context,
+    start_date: Optional[str] = None,
+    end_date: Optional[str] = None,
+    city: Optional[str] = None,
+    district: Optional[str] = None,
+    state: Optional[str] = None,
+) -> list[dict]:
+    """
+    Returns insights on where to deploy community video volunteers for maximum impact.
+
+    This tool fetches all events matching the Video Volunteers (VV) data filter:
+      - Sub category is 'Citizen Initiatives'
+      - Hours invested is 0 (or 0.0 or '0.000')
+      - Location is set (not null)
+      - Optional filters: start_date, end_date, city, district, state
+
+    The output is a list of dicts with 'location' and 'people_impacted' for each row where both are non-empty.
+
+    Parameters:
+        ctx: Internal MCP context (do not supply manually).
+        start_date: (Optional, format: DD/MM/YYYY) Start date for filtering event creation.
+        end_date: (Optional, format: DD/MM/YYYY) End date for filtering event creation.
+        city: (Optional) Filter by city.
+        district: (Optional) Filter by district.
+        state: (Optional) Filter by state.
+
+    Returns:
+        List of dicts: [{"location": str, "people_impacted": str}, ...]
+    """
+
+    conn: asyncpg.Connection = await get_db_connection()
+
+    filters = [
+        "e.subcategory = 'Citizen Initiatives'",
+        "(e.hours_invested = 0 OR e.hours_invested = 0.0 OR e.hours_invested = '0.000')",
+        "e.location IS NOT NULL",
+    ]
+
+    if start_date:
+        try:
+            start_dt = datetime.strptime(start_date, "%d/%m/%Y")
+            filters.append(f"e.creation >= '{start_dt.date().isoformat()}'")
+        except Exception:
+            pass
+    if end_date:
+        try:
+            end_dt = datetime.strptime(end_date, "%d/%m/%Y")
+            filters.append(f"e.creation <= '{end_dt.date().isoformat()}'")
+        except Exception:
+            pass
+    if city:
+        filters.append(f"l.city = '{city}'")
+    if district:
+        filters.append(f"l.district = '{district}'")
+    if state:
+        filters.append(f"l.state = '{state}'")
+
+    where_clause = " AND ".join(filters)
+
+    query = f"""
+        SELECT e.description
+        FROM tabEvents e
+        LEFT JOIN "tabLocation" l ON e.location = l.name
+        WHERE {where_clause}
+    """
+
+    rows = await conn.fetch(query)
+
+    # Regex patterns for extracting Location and People Impacted
+    location_pattern = re.compile(r"Location:\s*(.*?)<br>", re.IGNORECASE | re.DOTALL)
+    people_pattern = re.compile(
+        r"People Impacted:\s*(.*?)<br>", re.IGNORECASE | re.DOTALL
+    )
+
+    results = []
+    for row in rows:
+        desc = row["description"] or ""
+        location_match = location_pattern.search(desc)
+        people_match = people_pattern.search(desc)
+        location_val = location_match.group(1).strip() if location_match else ""
+        people_val = people_match.group(1).strip() if people_match else ""
+        # Only include if both are non-empty and not "Data unavailable"
+        if (
+            location_val
+            and people_val
+            and location_val.lower() != "data unavailable"
+            and people_val.lower() != "data unavailable"
+        ):
+            results.append(
+                {
+                    "location": location_val,
+                    "people_impacted": people_val,
+                }
+            )
+
+    await conn.close()
+    return results
+
+
+@mcp.tool()
+async def get_video_volunteers_steps_effectiveness_insights(
+    ctx: Context,
+    start_date: Optional[str] = None,
+    end_date: Optional[str] = None,
+    city: Optional[str] = None,
+    district: Optional[str] = None,
+    state: Optional[str] = None,
+) -> list[dict]:
+    """
+    Returns insights on which "Steps Taken" combinations are most effective for different issue types.
+
+    This tool fetches all events matching the Video Volunteers (VV) data filter:
+      - Sub category is 'Citizen Initiatives'
+      - Hours invested is 0 (or 0.0 or '0.000')
+      - Location is set (not null)
+      - Optional filters: start_date, end_date, city, district, state
+
+    The output is a list of dicts with 'steps_taken', 'issues_addressed', and 'people_impacted'
+    for each row where all three fields are non-empty.
+
+    Parameters:
+        ctx: Internal MCP context (do not supply manually).
+        start_date: (Optional, format: DD/MM/YYYY) Start date for filtering event creation.
+        end_date: (Optional, format: DD/MM/YYYY) End date for filtering event creation.
+        city: (Optional) Filter by city.
+        district: (Optional) Filter by district.
+        state: (Optional) Filter by state.
+
+    Returns:
+        List of dicts: [{"steps_taken": str, "issues_addressed": str, "people_impacted": str}, ...]
+    """
+
+    conn: asyncpg.Connection = await get_db_connection()
+
+    filters = [
+        "e.subcategory = 'Citizen Initiatives'",
+        "(e.hours_invested = 0 OR e.hours_invested = 0.0 OR e.hours_invested = '0.000')",
+        "e.location IS NOT NULL",
+    ]
+
+    if start_date:
+        try:
+            start_dt = datetime.strptime(start_date, "%d/%m/%Y")
+            filters.append(f"e.creation >= '{start_dt.date().isoformat()}'")
+        except Exception:
+            pass
+    if end_date:
+        try:
+            end_dt = datetime.strptime(end_date, "%d/%m/%Y")
+            filters.append(f"e.creation <= '{end_dt.date().isoformat()}'")
+        except Exception:
+            pass
+    if city:
+        filters.append(f"l.city = '{city}'")
+    if district:
+        filters.append(f"l.district = '{district}'")
+    if state:
+        filters.append(f"l.state = '{state}'")
+
+    where_clause = " AND ".join(filters)
+
+    query = f"""
+        SELECT e.description
+        FROM tabEvents e
+        LEFT JOIN "tabLocation" l ON e.location = l.name
+        WHERE {where_clause}
+    """
+
+    rows = await conn.fetch(query)
+
+    # Regex patterns for extracting Steps Taken, Issue(s) Addressed, and People Impacted
+    steps_pattern = re.compile(r"Steps Taken:\s*(.*?)<br>", re.IGNORECASE | re.DOTALL)
+    issues_pattern = re.compile(
+        r"Issue\(s\) Addressed:\s*(.*?)<br>", re.IGNORECASE | re.DOTALL
+    )
+    people_pattern = re.compile(
+        r"People Impacted:\s*(.*?)<br>", re.IGNORECASE | re.DOTALL
+    )
+
+    results = []
+    for row in rows:
+        desc = row["description"] or ""
+        steps_match = steps_pattern.search(desc)
+        issues_match = issues_pattern.search(desc)
+        people_match = people_pattern.search(desc)
+
+        steps_val = steps_match.group(1).strip() if steps_match else ""
+        issues_val = issues_match.group(1).strip() if issues_match else ""
+        people_val = people_match.group(1).strip() if people_match else ""
+
+        # Only include if all three fields are non-empty and not "Data unavailable"
+        if (
+            steps_val
+            and issues_val
+            and people_val
+            and steps_val.lower() != "data unavailable"
+            and issues_val.lower() != "data unavailable"
+            and people_val.lower() != "data unavailable"
+        ):
+            results.append(
+                {
+                    "steps_taken": steps_val,
+                    "issues_addressed": issues_val,
+                    "people_impacted": people_val,
+                }
+            )
+
+    await conn.close()
+    return results
+
+
+@mcp.tool()
+async def get_video_volunteers_root_causes(
+    ctx: Context,
+    start_date: Optional[str] = None,
+    end_date: Optional[str] = None,
+    city: Optional[str] = None,
+    district: Optional[str] = None,
+    state: Optional[str] = None,
+) -> list[dict]:
+    """
+    Returns insights on top root causes from Video Volunteers data.
+
+    This tool fetches all events matching the Video Volunteers (VV) data filter:
+      - Sub category is 'Citizen Initiatives'
+      - Hours invested is 0 (or 0.0 or '0.000')
+      - Location is set (not null)
+      - Optional filters: start_date, end_date, city, district, state
+
+    The output is a list of dicts with 'root_cause' for each row where the field is non-empty.
+
+    Parameters:
+        ctx: Internal MCP context (do not supply manually).
+        start_date: (Optional, format: DD/MM/YYYY) Start date for filtering event creation.
+        end_date: (Optional, format: DD/MM/YYYY) End date for filtering event creation.
+        city: (Optional) Filter by city.
+        district: (Optional) Filter by district.
+        state: (Optional) Filter by state.
+
+    Returns:
+        List of dicts: [{"root_cause": str}, ...]
+    """
+
+    conn: asyncpg.Connection = await get_db_connection()
+
+    filters = [
+        "e.subcategory = 'Citizen Initiatives'",
+        "(e.hours_invested = 0 OR e.hours_invested = 0.0 OR e.hours_invested = '0.000')",
+        "e.location IS NOT NULL",
+    ]
+
+    if start_date:
+        try:
+            start_dt = datetime.strptime(start_date, "%d/%m/%Y")
+            filters.append(f"e.creation >= '{start_dt.date().isoformat()}'")
+        except Exception:
+            pass
+    if end_date:
+        try:
+            end_dt = datetime.strptime(end_date, "%d/%m/%Y")
+            filters.append(f"e.creation <= '{end_dt.date().isoformat()}'")
+        except Exception:
+            pass
+    if city:
+        filters.append(f"l.city = '{city}'")
+    if district:
+        filters.append(f"l.district = '{district}'")
+    if state:
+        filters.append(f"l.state = '{state}'")
+
+    where_clause = " AND ".join(filters)
+
+    query = f"""
+        SELECT e.description
+        FROM tabEvents e
+        LEFT JOIN "tabLocation" l ON e.location = l.name
+        WHERE {where_clause}
+    """
+
+    rows = await conn.fetch(query)
+
+    # Regex pattern for extracting Root Cause
+    root_cause_pattern = re.compile(
+        r"Root Cause:\s*(.*?)<br>", re.IGNORECASE | re.DOTALL
+    )
+
+    results = []
+    for row in rows:
+        desc = row["description"] or ""
+        root_cause_match = root_cause_pattern.search(desc)
+        root_cause_val = root_cause_match.group(1).strip() if root_cause_match else ""
+
+        # Only include if field is non-empty and not "Data unavailable"
+        if root_cause_val and root_cause_val.lower() != "data unavailable":
+            results.append(
+                {
+                    "root_cause": root_cause_val,
+                }
+            )
+
+    await conn.close()
+
+    if len(results) > 1000:
+        return random.sample(results, 1000)
+
+    return results
+
+
+@mcp.tool()
+async def get_video_volunteers_policy_failure_patterns(
+    ctx: Context,
+    start_date: Optional[str] = None,
+    end_date: Optional[str] = None,
+    city: Optional[str] = None,
+    district: Optional[str] = None,
+    state: Optional[str] = None,
+) -> list[dict]:
+    """
+    Returns comprehensive data for analyzing policy failure patterns from Video Volunteers data.
+
+    This tool fetches all events matching the Video Volunteers (VV) data filter and extracts
+    multiple fields to identify patterns that indicate local/system policy failures:
+      - Sub category is 'Citizen Initiatives'
+      - Hours invested is 0 (or 0.0 or '0.000')
+      - Location is set (not null)
+      - Optional filters: start_date, end_date, city, district, state
+
+    Returns only data points where ALL fields are present and non-empty.
+    If more than 100 results, randomly samples 100 for analysis.
+
+    Parameters:
+        ctx: Internal MCP context (do not supply manually).
+        start_date: (Optional, format: DD/MM/YYYY) Start date for filtering event creation.
+        end_date: (Optional, format: DD/MM/YYYY) End date for filtering event creation.
+        city: (Optional) Filter by city.
+        district: (Optional) Filter by district.
+        state: (Optional) Filter by state.
+
+    Returns:
+        List of dicts with all policy-relevant fields:
+        [{"root_cause": str, "issues_addressed": str, "action_needed_from": str,
+          "related_govt_program": str, "issue_duration": str, "affected_groups": str,
+          "area_type": str, "extent_of_issue_spread": str}, ...]
+    """
+
+    conn: asyncpg.Connection = await get_db_connection()
+
+    filters = [
+        "e.subcategory = 'Citizen Initiatives'",
+        "(e.hours_invested = 0 OR e.hours_invested = 0.0 OR e.hours_invested = '0.000')",
+        "e.location IS NOT NULL",
+    ]
+
+    if start_date:
+        try:
+            start_dt = datetime.strptime(start_date, "%d/%m/%Y")
+            filters.append(f"e.creation >= '{start_dt.date().isoformat()}'")
+        except Exception:
+            pass
+    if end_date:
+        try:
+            end_dt = datetime.strptime(end_date, "%d/%m/%Y")
+            filters.append(f"e.creation <= '{end_dt.date().isoformat()}'")
+        except Exception:
+            pass
+    if city:
+        filters.append(f"l.city = '{city}'")
+    if district:
+        filters.append(f"l.district = '{district}'")
+    if state:
+        filters.append(f"l.state = '{state}'")
+
+    where_clause = " AND ".join(filters)
+
+    query = f"""
+        SELECT e.description
+        FROM tabEvents e
+        LEFT JOIN "tabLocation" l ON e.location = l.name
+        WHERE {where_clause}
+    """
+
+    rows = await conn.fetch(query)
+
+    # Regex patterns for extracting all policy-relevant fields
+    root_cause_pattern = re.compile(
+        r"Root Cause:\s*(.*?)<br>", re.IGNORECASE | re.DOTALL
+    )
+    issues_pattern = re.compile(
+        r"Issue\(s\) Addressed:\s*(.*?)<br>", re.IGNORECASE | re.DOTALL
+    )
+    action_needed_pattern = re.compile(
+        r"Action Needed From:\s*(.*?)<br>", re.IGNORECASE | re.DOTALL
+    )
+    govt_program_pattern = re.compile(
+        r"Related Govt Program:\s*(.*?)<br>", re.IGNORECASE | re.DOTALL
+    )
+    issue_duration_pattern = re.compile(
+        r"Issue Duration:\s*(.*?)<br>", re.IGNORECASE | re.DOTALL
+    )
+    affected_groups_pattern = re.compile(
+        r"Affected Groups:\s*(.*?)<br>", re.IGNORECASE | re.DOTALL
+    )
+    area_type_pattern = re.compile(r"Area Type:\s*(.*?)<br>", re.IGNORECASE | re.DOTALL)
+    extent_pattern = re.compile(
+        r"Extent of issue spread:\s*(.*?)<br>", re.IGNORECASE | re.DOTALL
+    )
+
+    results = []
+    for row in rows:
+        desc = row["description"] or ""
+
+        # Extract all fields
+        root_cause_match = root_cause_pattern.search(desc)
+        issues_match = issues_pattern.search(desc)
+        action_needed_match = action_needed_pattern.search(desc)
+        govt_program_match = govt_program_pattern.search(desc)
+        issue_duration_match = issue_duration_pattern.search(desc)
+        affected_groups_match = affected_groups_pattern.search(desc)
+        area_type_match = area_type_pattern.search(desc)
+        extent_match = extent_pattern.search(desc)
+
+        # Get values and strip whitespace
+        root_cause_val = root_cause_match.group(1).strip() if root_cause_match else ""
+        issues_val = issues_match.group(1).strip() if issues_match else ""
+        action_needed_val = (
+            action_needed_match.group(1).strip() if action_needed_match else ""
+        )
+        govt_program_val = (
+            govt_program_match.group(1).strip() if govt_program_match else ""
+        )
+        issue_duration_val = (
+            issue_duration_match.group(1).strip() if issue_duration_match else ""
+        )
+        affected_groups_val = (
+            affected_groups_match.group(1).strip() if affected_groups_match else ""
+        )
+        area_type_val = area_type_match.group(1).strip() if area_type_match else ""
+        extent_val = extent_match.group(1).strip() if extent_match else ""
+
+        # Only include if ALL fields are non-empty and not "Data unavailable"
+        if (
+            root_cause_val
+            and root_cause_val.lower() != "data unavailable"
+            and issues_val
+            and issues_val.lower() != "data unavailable"
+            and action_needed_val
+            and action_needed_val.lower() != "data unavailable"
+            and govt_program_val
+            and govt_program_val.lower() != "data unavailable"
+            and issue_duration_val
+            and issue_duration_val.lower() != "data unavailable"
+            and affected_groups_val
+            and affected_groups_val.lower() != "data unavailable"
+            and area_type_val
+            and area_type_val.lower() != "data unavailable"
+            and extent_val
+            and extent_val.lower() != "data unavailable"
+        ):
+            results.append(
+                {
+                    "root_cause": root_cause_val,
+                    "issues_addressed": issues_val,
+                    "action_needed_from": action_needed_val,
+                    "related_govt_program": govt_program_val,
+                    "issue_duration": issue_duration_val,
+                    "affected_groups": affected_groups_val,
+                    "area_type": area_type_val,
+                    "extent_of_issue_spread": extent_val,
+                }
+            )
+
+    await conn.close()
+
+    # Sample 100 if more than 100 results
+    if len(results) > 1000:
+        return random.sample(results, 1000)
+
+    return results
 
 
 if __name__ == "__main__":
