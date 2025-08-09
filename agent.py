@@ -84,3 +84,8 @@ async def answer_query(request: QueryRequest):
     result = await Runner.run(agent, request.query)
 
     return result.final_output
+
+
+@app.get("/health")
+async def health():
+    return {"status": "ok"}
