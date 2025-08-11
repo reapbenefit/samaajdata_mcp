@@ -860,7 +860,6 @@ async def get_trees_data_field_values(
         start_date: (Optional, format: DD/MM/YYYY) Start date for filtering event creation.
         end_date: (Optional, format: DD/MM/YYYY) End date for filtering event creation.
         city: (Optional) Filter by city.
-        district: (Optional) Filter by district.
         state: (Optional) Filter by state.
 
     Returns:
