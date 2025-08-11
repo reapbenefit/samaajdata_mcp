@@ -735,9 +735,6 @@ async def get_trees_data_count(
 ) -> dict:
     """
     Returns the count of trees data on SamaajData.
-    This data refers to events where:
-      - Event category is 'Tree Tracking' and subcategory is 'Trees' or 'Tree Tracking'
-      - Location is set (not null)
     """
 
     conn: asyncpg.Connection = await get_db_connection()
@@ -791,10 +788,8 @@ async def get_trees_data_metadata(
 ) -> dict:
     """
     Returns the list of fields for all the trees data available to query on SamaajData.
-    This data refers to events where:
-      - Event category is 'Tree Tracking' and subcategory is 'Trees' or 'Tree Tracking'
-      - Hours invested is 0
-      - Location is set (not null)
+    When any information is asked about trees data, use this tool to get the list of fields/data points that are available
+    about trees in the database and then, based on the field names and field descriptions, decide if the user's query can be answered with the data available.
     """
 
     conn: asyncpg.Connection = await get_db_connection()
@@ -856,10 +851,6 @@ async def get_trees_data_field_values(
 ) -> dict:
     """
     Returns all values for a given field from Trees data.
-
-    This data refers to events where:
-      - Event category is 'Tree Tracking' and subcategory is 'Trees' or 'Tree Tracking'
-      - Location is set (not null)
 
     Parameters:
         ctx: Internal MCP context (do not supply manually).
