@@ -844,6 +844,7 @@ async def get_trees_data_metadata(
 async def get_trees_data_field_values(
     ctx: Context,
     field_name: str,
+    aggregation_type: Optional[Literal["unique", "count"]] = None,
     start_date: Optional[str] = None,
     end_date: Optional[str] = None,
     city: Optional[str] = None,
@@ -855,6 +856,7 @@ async def get_trees_data_field_values(
     Parameters:
         ctx: Internal MCP context (do not supply manually).
         field_name: (Required) The name of the field to get values for.
+        aggregation_type: (Optional) The type of aggregation to perform on the field values.
         start_date: (Optional, format: DD/MM/YYYY) Start date for filtering event creation.
         end_date: (Optional, format: DD/MM/YYYY) End date for filtering event creation.
         city: (Optional) Filter by city.
@@ -910,10 +912,17 @@ async def get_trees_data_field_values(
     await conn.close()
 
     results = [result for result in results if result.strip()]
-    results = list(set(results))
 
-    # Sample if too many results
-    if len(results) > 1000:
+    await ctx.debug(f"aggregation_type: {aggregation_type}")
+
+    if aggregation_type == "unique":
+        results = list(set(results))
+    elif aggregation_type == "count":
+        from collections import Counter
+
+        results = dict(Counter(results))
+
+    if isinstance(results, list) and len(results) > 1000:
         results = random.sample(results, 1000)
 
     return {"values": results}
