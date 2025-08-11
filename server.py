@@ -856,7 +856,7 @@ async def get_trees_data_field_values(
     Parameters:
         ctx: Internal MCP context (do not supply manually).
         field_name: (Required) The name of the field to get values for.
-        aggregation_type: (Optional) The type of aggregation to perform on the field values.
+        aggregation_type: (Optional, Literal["unique", "count"]) The type of aggregation to perform on the field values.
         start_date: (Optional, format: DD/MM/YYYY) Start date for filtering event creation.
         end_date: (Optional, format: DD/MM/YYYY) End date for filtering event creation.
         city: (Optional) Filter by city.
@@ -864,7 +864,7 @@ async def get_trees_data_field_values(
         state: (Optional) Filter by state.
 
     Returns:
-        dict: {"values": [float, ...]}
+        dict: {"values": [value_1, value_2, ...]} or {"values": {"value_1": count_1, "value_2": count_2, ...}}
     """
 
     conn: asyncpg.Connection = await get_db_connection()
