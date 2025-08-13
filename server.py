@@ -89,7 +89,7 @@ async def get_valid_event_types(ctx: Context) -> list[str]:
 
 
 @mcp.tool()
-async def get_data_partners_list(ctx: Context) -> list[dict]:
+async def get_data_partners_list(ctx: Context) -> dict:
     """
     Returns the list of organizations that have contributed data to SamaajData along with the corresponding category and subcategory of the data they have contributed to be used for filtering the whole dataset.
 
@@ -106,14 +106,16 @@ async def get_data_partners_list(ctx: Context) -> list[dict]:
 
     await insert_query("get_data_partners_list", {})
 
-    return [
-        {
-            "partner": row["partner"],
-            "category": row["event_category"],
-            "subcategory": row["event_subcategory"],
-        }
-        for row in rows
-    ]
+    return {
+        "result": [
+            {
+                "partner": row["partner"],
+                "category": row["event_category"],
+                "subcategory": row["event_subcategory"],
+            }
+            for row in rows
+        ]
+    }
 
 
 @mcp.tool()
