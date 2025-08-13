@@ -227,350 +227,350 @@ async def get_event_points_for_area_from_samaajdata(
     }
 
 
-@mcp.tool()
-async def extract_spatial_data_from_samaajdata(
-    ctx: Context,
-    start_date: Optional[str] = None,
-    end_date: Optional[str] = None,
-    category: Optional[str] = None,
-    subcategory: Optional[str] = None,
-    type: Optional[str] = None,
-    aggregate_by: Optional[
-        Literal["point", "district", "state", "hobli_name", "grama_panchayath"]
-    ] = None,
-    aggregation_value: Optional[str] = None,
-) -> dict:
-    """
-    Returns the spatial data on all issues based on filters and desired aggregation level from Samaajdata. If aggregate_by is "point", the raw lat/lon for each issue is returned. Otherwise, the data is grouped by the aggregation level and all lower levels in the hierarchy.
+# @mcp.tool()
+# async def extract_spatial_data_from_samaajdata(
+#     ctx: Context,
+#     start_date: Optional[str] = None,
+#     end_date: Optional[str] = None,
+#     category: Optional[str] = None,
+#     subcategory: Optional[str] = None,
+#     type: Optional[str] = None,
+#     aggregate_by: Optional[
+#         Literal["point", "district", "state", "hobli_name", "grama_panchayath"]
+#     ] = None,
+#     aggregation_value: Optional[str] = None,
+# ) -> dict:
+#     """
+#     Returns the spatial data on all issues based on filters and desired aggregation level from Samaajdata. If aggregate_by is "point", the raw lat/lon for each issue is returned. Otherwise, the data is grouped by the aggregation level and all lower levels in the hierarchy.
 
-    This should be used only when the user query can be answered with the filters provided here. If the user's query requires more filters, use the get_data_metadata_on_samaajdata() tool to get the list of key-value pairs available for each event/data point and get the data field values using get_data_field_values_on_samaajdata() tool.
+#     This should be used only when the user query can be answered with the filters provided here. If the user's query requires more filters, use the get_data_metadata_on_samaajdata() tool to get the list of key-value pairs available for each event/data point and get the data field values using get_data_field_values_on_samaajdata() tool.
 
-    Aggregation hierarchy (from highest to lowest):
-    - state -> district -> hobli -> grama_panchayath -> point
+#     Aggregation hierarchy (from highest to lowest):
+#     - state -> district -> hobli -> grama_panchayath -> point
 
-    When you specify an aggregation level, you get data for that level and all lower levels.
-    For example:
-    - aggregate_by="state" returns: state, district, hobli, grama_panchayath aggregations
-    - aggregate_by="district" returns: district, hobli, grama_panchayath aggregations
-    - aggregate_by="hobli_name" returns: hobli_name, grama_panchayath aggregations
+#     When you specify an aggregation level, you get data for that level and all lower levels.
+#     For example:
+#     - aggregate_by="state" returns: state, district, hobli, grama_panchayath aggregations
+#     - aggregate_by="district" returns: district, hobli, grama_panchayath aggregations
+#     - aggregate_by="hobli_name" returns: hobli_name, grama_panchayath aggregations
 
-    For any data requested for video volunteers, always apply the following base filters on top of which other filters can be applied:
-    - event.subcategory = 'Citizen Initiatives'
-    - (event.hours_invested = 0 OR event.hours_invested = 0.0 OR event.hours_invested = '0.000')
-    - event.location IS NOT NULL
+#     For any data requested for video volunteers, always apply the following base filters on top of which other filters can be applied:
+#     - event.subcategory = 'Citizen Initiatives'
+#     - (event.hours_invested = 0 OR event.hours_invested = 0.0 OR event.hours_invested = '0.000')
+#     - event.location IS NOT NULL
 
-    Parameters:
-        ctx: Internal MCP context (do not supply manually).
-        start_date: (Optional, format: DD/MM/YYYY) Start date for filtering events by creation date.
-        end_date: (Optional, format: DD/MM/YYYY) End date for filtering events by creation date.
-        category: (Optional) Filter to include only events matching this category. If given, the value must be one of the values returned by get_valid_categories(). Only pick the most relevant category.
-        subcategory: (Optional) Filter to include only events matching this subcategory. If given, the value must be one of the values returned by get_valid_subcategories(). Only pick the most relevant subcategory. Only pick this if the category is also picked and the user query requires further filtering beyond category.
-        type: (Optional) Filter to include only events matching this event type. If given, the value must be one of the values returned by get_valid_event_types(). Only pick the most relevant type.
-        aggregate_by: (Optional) How to group events for clustering.
-            - "point": raw lat/lon for each issue (no aggregation)
-            - "state": grouped by state and all lower levels (district, hobli, grama_panchayath)
-            - "district": grouped by district and lower levels (hobli, grama_panchayath)
-            - "hobli_name": grouped by hobli_name and lower levels (grama_panchayath)
-            - "grama_panchayath": grouped by grama_panchayath only
-            - empty if not provided by the user
-        aggregation_value: (Optional) Value to aggregate by. If not provided, all values are returned. If provided, only the data for that value is returned.
+#     Parameters:
+#         ctx: Internal MCP context (do not supply manually).
+#         start_date: (Optional, format: DD/MM/YYYY) Start date for filtering events by creation date.
+#         end_date: (Optional, format: DD/MM/YYYY) End date for filtering events by creation date.
+#         category: (Optional) Filter to include only events matching this category. If given, the value must be one of the values returned by get_valid_categories(). Only pick the most relevant category.
+#         subcategory: (Optional) Filter to include only events matching this subcategory. If given, the value must be one of the values returned by get_valid_subcategories(). Only pick the most relevant subcategory. Only pick this if the category is also picked and the user query requires further filtering beyond category.
+#         type: (Optional) Filter to include only events matching this event type. If given, the value must be one of the values returned by get_valid_event_types(). Only pick the most relevant type.
+#         aggregate_by: (Optional) How to group events for clustering.
+#             - "point": raw lat/lon for each issue (no aggregation)
+#             - "state": grouped by state and all lower levels (district, hobli, grama_panchayath)
+#             - "district": grouped by district and lower levels (hobli, grama_panchayath)
+#             - "hobli_name": grouped by hobli_name and lower levels (grama_panchayath)
+#             - "grama_panchayath": grouped by grama_panchayath only
+#             - empty if not provided by the user
+#         aggregation_value: (Optional) Value to aggregate by. If not provided, all values are returned. If provided, only the data for that value is returned.
 
-    Returns:
-        A dictionary with:
-        - data: Dictionary with aggregation levels as keys and their respective data as values
-            * If "point": {"point": [{"latitude": float, "longitude": float, "count": int, "location": str}, ...]}
-            * Otherwise: {"state": [...], "district": [...], "hobli_name": [...], "grama_panchayath": [...]}
-        - meta: Metadata including time range and whether defaults were applied
-        - instructions: Message for LLM to explain assumptions and guide the user
-    """
+#     Returns:
+#         A dictionary with:
+#         - data: Dictionary with aggregation levels as keys and their respective data as values
+#             * If "point": {"point": [{"latitude": float, "longitude": float, "count": int, "location": str}, ...]}
+#             * Otherwise: {"state": [...], "district": [...], "hobli_name": [...], "grama_panchayath": [...]}
+#         - meta: Metadata including time range and whether defaults were applied
+#         - instructions: Message for LLM to explain assumptions and guide the user
+#     """
 
-    await insert_query(
-        "extract_data_from_samaajdata",
-        {
-            "start_date": start_date,
-            "end_date": end_date,
-            "category": category,
-            "subcategory": subcategory,
-            "type": type,
-            "aggregate_by": aggregate_by,
-            "aggregation_value": aggregation_value,
-        },
-    )
+#     await insert_query(
+#         "extract_data_from_samaajdata",
+#         {
+#             "start_date": start_date,
+#             "end_date": end_date,
+#             "category": category,
+#             "subcategory": subcategory,
+#             "type": type,
+#             "aggregate_by": aggregate_by,
+#             "aggregation_value": aggregation_value,
+#         },
+#     )
 
-    # Define aggregation hierarchy
-    hierarchy = ["state", "district", "hobli_name", "grama_panchayath", "point"]
+#     # Define aggregation hierarchy
+#     hierarchy = ["state", "district", "hobli_name", "grama_panchayath", "point"]
 
-    # Default date range handling
-    if start_date:
-        start = pd.to_datetime(start_date, dayfirst=True)
-    if end_date:
-        end = pd.to_datetime(end_date, dayfirst=True)
-    if not start_date:
-        start = datetime(2000, 1, 1)
-    if not end_date:
-        end = datetime.today()
+#     # Default date range handling
+#     if start_date:
+#         start = pd.to_datetime(start_date, dayfirst=True)
+#     if end_date:
+#         end = pd.to_datetime(end_date, dayfirst=True)
+#     if not start_date:
+#         start = datetime(2000, 1, 1)
+#     if not end_date:
+#         end = datetime.today()
 
-    if not aggregate_by:
-        aggregate_by = "district"
-        default_agg_applied = True
-    else:
-        default_agg_applied = False
+#     if not aggregate_by:
+#         aggregate_by = "district"
+#         default_agg_applied = True
+#     else:
+#         default_agg_applied = False
 
-    # Build base filters
-    filters = []
-    if start_date:
-        filters.append(f"e.creation >= '{start.date().isoformat()}'")
-    if end_date:
-        filters.append(f"e.creation <= '{end.date().isoformat()}'")
-    if category:
-        filters.append(f"e.category = '{category}'")
-    if subcategory:
-        filters.append(f"e.subcategory = '{subcategory}'")
-    if type:
-        filters.append(f"e.type = '{type}'")
+#     # Build base filters
+#     filters = []
+#     if start_date:
+#         filters.append(f"e.creation >= '{start.date().isoformat()}'")
+#     if end_date:
+#         filters.append(f"e.creation <= '{end.date().isoformat()}'")
+#     if category:
+#         filters.append(f"e.category = '{category}'")
+#     if subcategory:
+#         filters.append(f"e.subcategory = '{subcategory}'")
+#     if type:
+#         filters.append(f"e.type = '{type}'")
 
-    base_where_clause = " AND ".join(filters) if filters else "1=1"
+#     base_where_clause = " AND ".join(filters) if filters else "1=1"
 
-    conn: asyncpg.Connection = await get_db_connection()
+#     conn: asyncpg.Connection = await get_db_connection()
 
-    result_data = {}
+#     result_data = {}
 
-    if aggregate_by == "point":
-        # Handle point aggregation separately
-        where_clause = base_where_clause
-        if aggregation_value:
-            # For point aggregation, aggregation_value could be used to filter by location
-            where_clause += f" AND (l.state = '{aggregation_value}' OR l.district = '{aggregation_value}' OR l.hobli_name = '{aggregation_value}' OR l.grama_panchayath = '{aggregation_value}')"
+#     if aggregate_by == "point":
+#         # Handle point aggregation separately
+#         where_clause = base_where_clause
+#         if aggregation_value:
+#             # For point aggregation, aggregation_value could be used to filter by location
+#             where_clause += f" AND (l.state = '{aggregation_value}' OR l.district = '{aggregation_value}' OR l.hobli_name = '{aggregation_value}' OR l.grama_panchayath = '{aggregation_value}')"
 
-        query = f"""
-        SELECT 
-            e.latitude::float AS latitude,
-            e.longitude::float AS longitude,
-            e.title AS title,
-            e.category AS category,
-            e.subcategory AS subcategory,
-            e.type AS type,
-            COUNT(*) AS count,
-            COALESCE(l.city, l.district, l.state, e.location, l.hobli_name, l.grama_panchayath) AS location
-        FROM "tabEvents" e
-        LEFT JOIN "tabLocation" l ON e.location = l.name
-        WHERE 
-            e.latitude IS NOT NULL 
-            AND e.longitude IS NOT NULL 
-            AND e.latitude ~ '^[0-9.+-]+$'
-            AND e.longitude ~ '^[0-9.+-]+$'
-            AND {where_clause}
-        GROUP BY e.latitude, e.longitude, location, l.city, l.district, l.state, l.hobli_name, l.grama_panchayath, e.title, e.category, e.subcategory, e.type
-        ORDER BY count DESC
-        """
+#         query = f"""
+#         SELECT
+#             e.latitude::float AS latitude,
+#             e.longitude::float AS longitude,
+#             e.title AS title,
+#             e.category AS category,
+#             e.subcategory AS subcategory,
+#             e.type AS type,
+#             COUNT(*) AS count,
+#             COALESCE(l.city, l.district, l.state, e.location, l.hobli_name, l.grama_panchayath) AS location
+#         FROM "tabEvents" e
+#         LEFT JOIN "tabLocation" l ON e.location = l.name
+#         WHERE
+#             e.latitude IS NOT NULL
+#             AND e.longitude IS NOT NULL
+#             AND e.latitude ~ '^[0-9.+-]+$'
+#             AND e.longitude ~ '^[0-9.+-]+$'
+#             AND {where_clause}
+#         GROUP BY e.latitude, e.longitude, location, l.city, l.district, l.state, l.hobli_name, l.grama_panchayath, e.title, e.category, e.subcategory, e.type
+#         ORDER BY count DESC
+#         """
 
-        await ctx.debug(f"Point Query:\n{query}")
-        rows = await conn.fetch(query)
+#         await ctx.debug(f"Point Query:\n{query}")
+#         rows = await conn.fetch(query)
 
-        result_data["point"] = [
-            {
-                "latitude": row["latitude"],
-                "longitude": row["longitude"],
-                "count": row["count"],
-                "location": row["location"],
-                "title": row["title"],
-                "category": row["category"],
-                "subcategory": row["subcategory"],
-                "type": row["type"],
-            }
-            for row in rows
-        ]
-    else:
-        # Handle multi-level aggregation
-        # Get the index of the requested aggregation level
-        start_index = hierarchy.index(aggregate_by)
+#         result_data["point"] = [
+#             {
+#                 "latitude": row["latitude"],
+#                 "longitude": row["longitude"],
+#                 "count": row["count"],
+#                 "location": row["location"],
+#                 "title": row["title"],
+#                 "category": row["category"],
+#                 "subcategory": row["subcategory"],
+#                 "type": row["type"],
+#             }
+#             for row in rows
+#         ]
+#     else:
+#         # Handle multi-level aggregation
+#         # Get the index of the requested aggregation level
+#         start_index = hierarchy.index(aggregate_by)
 
-        # Get all levels from the requested level down to grama_panchayath
-        levels_to_aggregate = hierarchy[start_index:-1]  # Exclude "point"
+#         # Get all levels from the requested level down to grama_panchayath
+#         levels_to_aggregate = hierarchy[start_index:-1]  # Exclude "point"
 
-        for level in levels_to_aggregate:
-            where_clause = base_where_clause
-            if aggregation_value:
-                where_clause += f" AND l.{aggregate_by} = '{aggregation_value}'"
+#         for level in levels_to_aggregate:
+#             where_clause = base_where_clause
+#             if aggregation_value:
+#                 where_clause += f" AND l.{aggregate_by} = '{aggregation_value}'"
 
-            query = f"""
-            SELECT 
-                l.{level} AS location, 
-                COUNT(*) AS count
-            FROM "tabEvents" e
-            LEFT JOIN "tabLocation" l ON e.location = l.name
-            WHERE 
-                e.latitude IS NOT NULL 
-                AND e.longitude IS NOT NULL 
-                AND e.latitude ~ '^[0-9.+-]+$'
-                AND e.longitude ~ '^[0-9.+-]+$'
-                AND {where_clause}
-                AND l.{level} IS NOT NULL
-                AND l.{level} != ''
-            GROUP BY l.{level}
-            ORDER BY count DESC
-            LIMIT 100
-            """
+#             query = f"""
+#             SELECT
+#                 l.{level} AS location,
+#                 COUNT(*) AS count
+#             FROM "tabEvents" e
+#             LEFT JOIN "tabLocation" l ON e.location = l.name
+#             WHERE
+#                 e.latitude IS NOT NULL
+#                 AND e.longitude IS NOT NULL
+#                 AND e.latitude ~ '^[0-9.+-]+$'
+#                 AND e.longitude ~ '^[0-9.+-]+$'
+#                 AND {where_clause}
+#                 AND l.{level} IS NOT NULL
+#                 AND l.{level} != ''
+#             GROUP BY l.{level}
+#             ORDER BY count DESC
+#             LIMIT 100
+#             """
 
-            await ctx.debug(f"{level.capitalize()} Query:\n{query}")
-            rows = await conn.fetch(query)
+#             await ctx.debug(f"{level.capitalize()} Query:\n{query}")
+#             rows = await conn.fetch(query)
 
-            result_data[level] = [
-                {"location": row["location"], "count": row["count"]}
-                for row in rows
-                if row["location"]
-            ]
+#             result_data[level] = [
+#                 {"location": row["location"], "count": row["count"]}
+#                 for row in rows
+#                 if row["location"]
+#             ]
 
-    await conn.close()
+#     await conn.close()
 
-    instructions = (
-        "Surface the assumptions used (like time range = past 30 days, aggregation = district) to the user if any.\n"
-        "Encourage them to try more specific queries like:\n"
-        "- 'Show me events in March by hobli'\n"
-        "- 'Cluster sanitation issues in Karnataka by grama panchayat'\n"
-        "- 'Where are fire incidents concentrated this year?'\n"
-        "If the number of issues is very high (if it will exceed your context limit) and the user wants you to do further analysis on the raw data points, ask them to use the filters to reduce the number of issues first.\n"
-        "Empty location values mean the location data wasn't available for that field."
-    )
+#     instructions = (
+#         "Surface the assumptions used (like time range = past 30 days, aggregation = district) to the user if any.\n"
+#         "Encourage them to try more specific queries like:\n"
+#         "- 'Show me events in March by hobli'\n"
+#         "- 'Cluster sanitation issues in Karnataka by grama panchayat'\n"
+#         "- 'Where are fire incidents concentrated this year?'\n"
+#         "If the number of issues is very high (if it will exceed your context limit) and the user wants you to do further analysis on the raw data points, ask them to use the filters to reduce the number of issues first.\n"
+#         "Empty location values mean the location data wasn't available for that field."
+#     )
 
-    output = {
-        "data": result_data,
-        "meta": {
-            "defaults_applied": {
-                "aggregation": default_agg_applied,
-            },
-            "time_range_used": {
-                "start": start.date().isoformat(),
-                "end": end.date().isoformat(),
-            },
-            "aggregation_used": aggregate_by,
-            "aggregation_levels_returned": list(result_data.keys()),
-        },
-    }
+#     output = {
+#         "data": result_data,
+#         "meta": {
+#             "defaults_applied": {
+#                 "aggregation": default_agg_applied,
+#             },
+#             "time_range_used": {
+#                 "start": start.date().isoformat(),
+#                 "end": end.date().isoformat(),
+#             },
+#             "aggregation_used": aggregate_by,
+#             "aggregation_levels_returned": list(result_data.keys()),
+#         },
+#     }
 
-    if default_agg_applied:
-        output["instructions"] = instructions
+#     if default_agg_applied:
+#         output["instructions"] = instructions
 
-    return output
+#     return output
 
 
-@mcp.tool()
-async def get_event_trend_over_time_from_samaajdata(
-    ctx: Context,
-    start_date: Optional[str] = None,
-    end_date: Optional[str] = None,
-    category: Optional[str] = None,
-    subcategory: Optional[str] = None,
-    type: Optional[str] = None,
-    interval: Literal["month", "week", "year"] = "month",
-    filter_date_type: Optional[Literal["year", "month"]] = None,
-    filter_date_value: Optional[str] = None,
-    aggregation_level: Optional[
-        Literal["district", "state", "hobli_name", "grama_panchayath"]
-    ] = None,
-    aggregation_value: Optional[str] = None,
-) -> dict:
-    """
-    Returns a time series of event counts to track trends over time, grouped by the given interval from Samaajdata.
+# @mcp.tool()
+# async def get_event_trend_over_time_from_samaajdata(
+#     ctx: Context,
+#     start_date: Optional[str] = None,
+#     end_date: Optional[str] = None,
+#     category: Optional[str] = None,
+#     subcategory: Optional[str] = None,
+#     type: Optional[str] = None,
+#     interval: Literal["month", "week", "year"] = "month",
+#     filter_date_type: Optional[Literal["year", "month"]] = None,
+#     filter_date_value: Optional[str] = None,
+#     aggregation_level: Optional[
+#         Literal["district", "state", "hobli_name", "grama_panchayath"]
+#     ] = None,
+#     aggregation_value: Optional[str] = None,
+# ) -> dict:
+#     """
+#     Returns a time series of event counts to track trends over time, grouped by the given interval from Samaajdata.
 
-    This should be used only when the user query can be answered with the filters provided here. If the user's query requires more filters, use the get_data_metadata_on_samaajdata() tool to get the list of key-value pairs available for each event/data point and get the data field values using get_data_field_values_on_samaajdata() tool.
+#     This should be used only when the user query can be answered with the filters provided here. If the user's query requires more filters, use the get_data_metadata_on_samaajdata() tool to get the list of key-value pairs available for each event/data point and get the data field values using get_data_field_values_on_samaajdata() tool.
 
-    Parameters:
-        ctx: Internal MCP context (do not supply manually).
-        start_date: (Optional, format: DD/MM/YYYY) Start date for filtering event creation date.
-        end_date: (Optional, format: DD/MM/YYYY) End date for filtering event creation date.
-        category: (Optional) Filter by event category.
-                  Use values from get_valid_categories().
-        subcategory: (Optional) Filter by event subcategory.
-                     Use values from get_valid_subcategories().
-        type: (Optional) Filter by event type.
-              Use values from get_valid_event_types().
-        interval: Time grouping level. One of "month" (default), "week", or "year".
-        aggregation_level: (Optional) Geographic level to match ("district", "state", "hobli_name", or "grama_panchayath").
-        aggregation_value: (Optional) Name of the area to match (e.g., "Ludhiana" if aggregation_level="district").
-    Returns:
-        A dictionary with:
-        - trend: List of dicts with 'period' and 'count'
-        - meta: Time range used and filters applied
-        - instructions: Message for the LLM to explain results and suggest deeper analysis
-    """
+#     Parameters:
+#         ctx: Internal MCP context (do not supply manually).
+#         start_date: (Optional, format: DD/MM/YYYY) Start date for filtering event creation date.
+#         end_date: (Optional, format: DD/MM/YYYY) End date for filtering event creation date.
+#         category: (Optional) Filter by event category.
+#                   Use values from get_valid_categories().
+#         subcategory: (Optional) Filter by event subcategory.
+#                      Use values from get_valid_subcategories().
+#         type: (Optional) Filter by event type.
+#               Use values from get_valid_event_types().
+#         interval: Time grouping level. One of "month" (default), "week", or "year".
+#         aggregation_level: (Optional) Geographic level to match ("district", "state", "hobli_name", or "grama_panchayath").
+#         aggregation_value: (Optional) Name of the area to match (e.g., "Ludhiana" if aggregation_level="district").
+#     Returns:
+#         A dictionary with:
+#         - trend: List of dicts with 'period' and 'count'
+#         - meta: Time range used and filters applied
+#         - instructions: Message for the LLM to explain results and suggest deeper analysis
+#     """
 
-    await insert_query(
-        "get_event_trend_over_time_from_samaajdata",
-        {
-            "start_date": start_date,
-            "end_date": end_date,
-            "category": category,
-            "subcategory": subcategory,
-            "type": type,
-            "interval": interval,
-            "filter_date_type": filter_date_type,
-            "filter_date_value": filter_date_value,
-            "aggregation_level": aggregation_level,
-            "aggregation_value": aggregation_value,
-        },
-    )
+#     await insert_query(
+#         "get_event_trend_over_time_from_samaajdata",
+#         {
+#             "start_date": start_date,
+#             "end_date": end_date,
+#             "category": category,
+#             "subcategory": subcategory,
+#             "type": type,
+#             "interval": interval,
+#             "filter_date_type": filter_date_type,
+#             "filter_date_value": filter_date_value,
+#             "aggregation_level": aggregation_level,
+#             "aggregation_value": aggregation_value,
+#         },
+#     )
 
-    if start_date:
-        start = pd.to_datetime(start_date, dayfirst=True)
+#     if start_date:
+#         start = pd.to_datetime(start_date, dayfirst=True)
 
-    if end_date:
-        end = pd.to_datetime(end_date, dayfirst=True)
-    else:
-        end = datetime.today()
+#     if end_date:
+#         end = pd.to_datetime(end_date, dayfirst=True)
+#     else:
+#         end = datetime.today()
 
-    filters = []
-    if start_date:
-        filters.append(f"e.creation >= '{start.date().isoformat()}'")
-    if end_date:
-        filters.append(f"e.creation <= '{end.date().isoformat()}'")
-    if category:
-        filters.append(f"e.category = '{category}'")
-    if subcategory:
-        filters.append(f"e.subcategory = '{subcategory}'")
-    if type:
-        filters.append(f"e.type = '{type}'")
-    if aggregation_level:
-        filters.append(f"l.{aggregation_level} = '{aggregation_value}'")
-    if filter_date_type and filter_date_value:
-        if filter_date_type == "year":
-            filters.append(f"EXTRACT(year FROM e.creation) = {filter_date_value}")
-        elif filter_date_type == "month":
-            filters.append(f"to_char(e.creation, 'YYYY-MM') = '{filter_date_value}'")
+#     filters = []
+#     if start_date:
+#         filters.append(f"e.creation >= '{start.date().isoformat()}'")
+#     if end_date:
+#         filters.append(f"e.creation <= '{end.date().isoformat()}'")
+#     if category:
+#         filters.append(f"e.category = '{category}'")
+#     if subcategory:
+#         filters.append(f"e.subcategory = '{subcategory}'")
+#     if type:
+#         filters.append(f"e.type = '{type}'")
+#     if aggregation_level:
+#         filters.append(f"l.{aggregation_level} = '{aggregation_value}'")
+#     if filter_date_type and filter_date_value:
+#         if filter_date_type == "year":
+#             filters.append(f"EXTRACT(year FROM e.creation) = {filter_date_value}")
+#         elif filter_date_type == "month":
+#             filters.append(f"to_char(e.creation, 'YYYY-MM') = '{filter_date_value}'")
 
-    where_clause = " AND ".join(filters)
+#     where_clause = " AND ".join(filters)
 
-    # Time truncation
-    time_field = {
-        "month": "to_char(date_trunc('month', e.creation), 'YYYY-MM')",
-        "week": "to_char(date_trunc('week', e.creation), 'IYYY-IW')",
-        "year": "to_char(date_trunc('year', e.creation), 'YYYY')",
-    }[interval]
+#     # Time truncation
+#     time_field = {
+#         "month": "to_char(date_trunc('month', e.creation), 'YYYY-MM')",
+#         "week": "to_char(date_trunc('week', e.creation), 'IYYY-IW')",
+#         "year": "to_char(date_trunc('year', e.creation), 'YYYY')",
+#     }[interval]
 
-    await ctx.debug(f"where_clause: {where_clause}")
+#     await ctx.debug(f"where_clause: {where_clause}")
 
-    query = f"""
-    SELECT 
-        {time_field} AS period,
-        COUNT(*) AS count
-    FROM tabEvents e
-    LEFT JOIN "tabLocation" l ON e.location = l.name
-    WHERE {where_clause}
-    GROUP BY period
-    ORDER BY period
-    """
+#     query = f"""
+#     SELECT
+#         {time_field} AS period,
+#         COUNT(*) AS count
+#     FROM tabEvents e
+#     LEFT JOIN "tabLocation" l ON e.location = l.name
+#     WHERE {where_clause}
+#     GROUP BY period
+#     ORDER BY period
+#     """
 
-    await ctx.debug(f"Query:\n{query}")
+#     await ctx.debug(f"Query:\n{query}")
 
-    conn: asyncpg.Connection = await get_db_connection()
-    rows = await conn.fetch(query)
+#     conn: asyncpg.Connection = await get_db_connection()
+#     rows = await conn.fetch(query)
 
-    trend = [{"period": row["period"], "count": row["count"]} for row in rows]
+#     trend = [{"period": row["period"], "count": row["count"]} for row in rows]
 
-    return {
-        "trend": trend,
-        "instructions": "Display this as a line or bar chart showing trends over time. Use the 'interval' field to choose the x-axis (month, week, year). You can ask follow-ups like: 'Break this down by location', 'Compare this with sanitation issues', 'Show me peak months of complaints'",
-    }
+#     return {
+#         "trend": trend,
+#         "instructions": "Display this as a line or bar chart showing trends over time. Use the 'interval' field to choose the x-axis (month, week, year). You can ask follow-ups like: 'Break this down by location', 'Compare this with sanitation issues', 'Show me peak months of complaints'",
+#     }
 
 
 @mcp.tool()
