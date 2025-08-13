@@ -92,6 +92,8 @@ async def get_valid_event_types(ctx: Context) -> list[str]:
 async def get_data_partners_list(ctx: Context) -> list[dict]:
     """
     Returns the list of organizations that have contributed data to SamaajData along with the corresponding category and subcategory of the data they have contributed to be used for filtering the whole dataset.
+
+    Whenever a user query is made, always begin by calling this tool to get the list of partners and their corresponding category and subcategory. This data can then be used to call the appropriate tools to get the required data with the right partner/category/subcategory filters.
     """
     conn: asyncpg.Connection = await get_db_connection()
 
@@ -656,28 +658,49 @@ async def get_data_metadata_on_samaajdata(
 
     where_clause = " AND ".join(where_clauses) if where_clauses else "1=1"
 
-    query = f"""
-        SELECT 
+    # First, get field names and definitions
+    fields_query = f"""
+        SELECT DISTINCT
             e.field_name, 
-            e.field_definition,
-            ARRAY(
-                SELECT DISTINCT em.field_value
-                FROM "Events Metadata" em
-                WHERE em.field_name = e.field_name
-                  AND em.event_category IN ({', '.join([f'\'{cat}\'' for cat in event_categories])})
-                  AND em.event_subcategory IN ({', '.join([f'\'{subcat}\'' for subcat in event_subcategories])})
-                  AND em.partner IN ({', '.join([f'\'{partner}\'' for partner in partners])})
-                  AND em.location_id IS NOT NULL
-                LIMIT 10
-            ) AS example_values
+            e.field_definition
         FROM "Events Metadata" e
         WHERE {where_clause}
-        GROUP BY e.field_name, e.field_definition
+        ORDER BY e.field_name
     """
 
-    await ctx.debug(f"Query: {query}")
+    await ctx.debug(f"Fields Query: {fields_query}")
 
-    rows = await conn.fetch(query)
+    field_rows = await conn.fetch(fields_query)
+
+    # Then, get example values for each field
+    rows = []
+    for field_row in field_rows:
+        field_name = field_row["field_name"]
+
+        examples_query = f"""
+            SELECT DISTINCT field_value
+            FROM "Events Metadata"
+            WHERE field_name = $1
+              AND event_category IN ({', '.join([f'\'{cat}\'' for cat in event_categories])})
+              AND event_subcategory IN ({', '.join([f'\'{subcat}\'' for subcat in event_subcategories])})
+              AND partner IN ({', '.join([f'\'{partner}\'' for partner in partners])})
+              AND location_id IS NOT NULL
+              AND field_value IS NOT NULL
+            LIMIT 10
+        """
+
+        await ctx.debug(f"Examples Query for {field_name}: {examples_query}")
+
+        example_rows = await conn.fetch(examples_query, field_name)
+        example_values = [row["field_value"] for row in example_rows]
+
+        rows.append(
+            {
+                "field_name": field_row["field_name"],
+                "field_definition": field_row["field_definition"],
+                "example_values": example_values,
+            }
+        )
 
     await conn.close()
 
