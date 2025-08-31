@@ -14,8 +14,16 @@ from db import insert_query
 import re
 import random
 import argparse
+import matplotlib.pyplot as plt
+import matplotlib
+import base64
+import io
+from collections import Counter
 
 load_dotenv()
+
+# Set matplotlib to use non-interactive backend
+matplotlib.use("Agg")
 
 DATABASE_URL = os.getenv("DATABASE_URL")
 
@@ -30,12 +38,14 @@ DATABASE_URL = os.getenv("DATABASE_URL")
 #             await conn.close()
 
 
-parser = argparse.ArgumentParser()
-parser.add_argument("--port", action="store", type=int, default=8000)
-args = parser.parse_args()
+# parser = argparse.ArgumentParser()
+# parser.add_argument("--port", action="store", type=int, default=8000)
+# args = parser.parse_args()
+# port = args.port
 
+port = 8000
 
-mcp = FastMCP("SamaajData MCP server", host="0.0.0.0", port=args.port)
+mcp = FastMCP("SamaajData MCP server", host="0.0.0.0", port=port)
 
 
 async def get_db_connection():
@@ -839,8 +849,6 @@ async def get_data_field_values_on_samaajdata(
         if aggregation_type == "unique":
             results = list(set(results))
         elif aggregation_type == "count":
-            from collections import Counter
-
             results = dict(Counter(results))
 
         if isinstance(results, list) and len(results) > 1000:
@@ -886,8 +894,6 @@ async def get_data_field_values_on_samaajdata(
                     result = list(set(data))
                     return result[:1000] if len(result) > 1000 else result
                 elif aggregation_type == "count":
-                    from collections import Counter
-
                     return dict(Counter(data))
                 else:
                     return data[:1000] if len(data) > 1000 else data
@@ -897,6 +903,152 @@ async def get_data_field_values_on_samaajdata(
 
         segregated_data = apply_aggregation(segregated_data)
         return {"values": segregated_data}
+
+
+@mcp.tool()
+async def create_pie_chart(
+    ctx: Context,
+    data: list[str],
+    title: Optional[str] = None,
+    colors: Optional[list[str]] = None,
+    width: Optional[int] = 10,
+    height: Optional[int] = 8,
+    show_percentages: Optional[bool] = True,
+    start_angle: Optional[int] = 90,
+) -> dict:
+    """
+    Creates a pie chart image and returns it as a base64-encoded string.
+
+    Parameters:
+        ctx: Internal MCP context (do not supply manually).
+        data: List of string values that will be counted to create the pie chart (e.g., ["Category A", "Category A", "Category B", "Category B", "Category B"]).
+        title: (Optional) Title for the pie chart.
+        colors: (Optional) List of color names/hex codes for the pie slices. If not provided, uses default matplotlib colors.
+        width: (Optional) Width of the figure in inches. Default is 10.
+        height: (Optional) Height of the figure in inches. Default is 8.
+        show_percentages: (Optional) Whether to show percentages on the pie slices. Default is True.
+        start_angle: (Optional) Starting angle for the first slice in degrees. Default is 90 (top of circle).
+
+    Returns:
+        Dictionary with:
+        - image_base64: Base64-encoded PNG image string
+        - image_format: "png"
+        - chart_type: "pie_chart"
+        - data_summary: Summary of the input data including counts
+    """
+
+    await insert_query(
+        "create_pie_chart",
+        {
+            "data": data,
+            "title": title,
+            "colors": colors,
+            "width": width,
+            "height": height,
+            "show_percentages": show_percentages,
+            "start_angle": start_angle,
+        },
+    )
+
+    try:
+        # Validate input data
+        if not data:
+            raise ValueError("Data cannot be empty")
+
+        if not isinstance(data, list):
+            raise ValueError("Data must be a list of string values")
+
+        # Filter out None and empty string values
+        filtered_data = [
+            str(item).strip() for item in data if item is not None and str(item).strip()
+        ]
+
+        if not filtered_data:
+            raise ValueError("No valid data found after filtering empty values")
+
+        # Count occurrences of each unique value
+        value_counts = Counter(filtered_data)
+
+        # Extract labels and values
+        labels = list(value_counts.keys())
+        values = list(value_counts.values())
+
+        # Create figure
+        fig, ax = plt.subplots(figsize=(width, height))
+
+        # Create pie chart
+        autopct = "%1.1f%%" if show_percentages else None
+
+        wedges, texts, autotexts = ax.pie(
+            values,
+            labels=labels,
+            autopct=autopct,
+            startangle=start_angle,
+            colors=colors,
+        )
+
+        # Set title if provided
+        if title:
+            ax.set_title(title, fontsize=16, fontweight="bold", pad=20)
+
+        # Ensure equal aspect ratio for circular pie
+        ax.axis("equal")
+
+        # Improve text readability
+        if show_percentages and autotexts:
+            for autotext in autotexts:
+                autotext.set_color("white")
+                autotext.set_fontweight("bold")
+                autotext.set_fontsize(10)
+
+        # Adjust layout
+        plt.tight_layout()
+
+        # Save to bytes buffer
+        img_buffer = io.BytesIO()
+        plt.savefig(img_buffer, format="png", dpi=300, bbox_inches="tight")
+        img_buffer.seek(0)
+
+        # Encode to base64
+        img_base64 = base64.b64encode(img_buffer.getvalue()).decode("utf-8")
+
+        # Close the figure to free memory
+        plt.close(fig)
+
+        # Prepare data summary
+        total_count = sum(values)
+        data_summary = {
+            "total_categories": len(labels),
+            "total_items": len(filtered_data),
+            "total_count": total_count,
+            "categories": [
+                {
+                    "label": label,
+                    "count": count,
+                    "percentage": (
+                        round((count / total_count) * 100, 2) if total_count > 0 else 0
+                    ),
+                }
+                for label, count in zip(labels, values)
+            ],
+        }
+
+        return {
+            "image_base64": img_base64,
+            "image_format": "png",
+            "chart_type": "pie_chart",
+            "data_summary": data_summary,
+            "title": title or "Pie Chart",
+            "instructions": "The pie chart has been generated as a base64-encoded PNG image from the counted occurrences of each unique value in your data list. You can display this image or save it to a file. The data_summary provides details about the chart contents including counts and percentages.",
+        }
+
+    except Exception as e:
+        await ctx.debug(f"Error creating pie chart: {str(e)}")
+        return {
+            "error": f"Failed to create pie chart: {str(e)}",
+            "image_base64": None,
+            "chart_type": "pie_chart",
+        }
 
 
 # @mcp.tool()
