@@ -32,6 +32,9 @@ jobs:
             
             # Pull latest code
             git pull origin main
+
+            # Activate virtualenv
+            source venv/bin/activate
             
             # Create .env file with environment variables
             cat > .env << 'ENVEOF'
