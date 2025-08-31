@@ -1,0 +1,71 @@
+name: Deploy to Production
+
+on:
+  release:
+    types: [published]
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    environment: Production
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup SSH
+        uses: webfactory/ssh-agent@v0.8.0
+        with:
+          ssh-private-key: ${{ secrets.EC2_SSH_PRIVATE_KEY }}
+
+      - name: Add EC2 to known hosts
+        run: |
+          ssh-keyscan -H ${{ secrets.EC2_HOST }} >> ~/.ssh/known_hosts
+
+      - name: Deploy to production
+        run: |
+          ssh ${{ secrets.EC2_USER }}@${{ secrets.EC2_HOST }} << 'EOF'
+            set -e
+            
+            # Navigate to production directory
+            cd rb_mcp
+            
+            # Pull latest code
+            git pull origin main
+
+            # Activate virtualenv
+            source venv/bin/activate
+            
+            # Create .env file with environment variables
+            cat > .env << 'ENVEOF'
+          DATABASE_URL=${{ secrets.DATABASE_URL }}
+          OPENAI_API_KEY=${{ secrets.OPENAI_API_KEY }}
+          ENV=${{ secrets.ENV }}
+          S3_BUCKET_NAME=${{ secrets.S3_BUCKET_NAME }}
+          S3_FOLDER_NAME=${{ secrets.S3_FOLDER_NAME }}
+          AWS_CLOUDFRONT_DISTRIBUTION_URL=${{ secrets.AWS_CLOUDFRONT_DISTRIBUTION_URL }}
+          ENVEOF
+            
+            # Update requirements
+            pip install -r requirements.txt
+            
+            # Restart the service using supervisorctl
+            sudo supervisorctl restart mcp
+            
+            # Wait for service to start
+            sleep 5
+            
+            # Verify service is running
+            if sudo supervisorctl status mcp | grep -q "RUNNING"; then
+              echo "Production service restarted successfully"
+            else
+              echo "Failed to restart production service"
+              sudo supervisorctl status mcp
+              exit 1
+            fi
+          EOF
+
+      - name: Verify deployment
+        run: |
+          echo "Deployment to production completed successfully"
