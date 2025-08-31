@@ -8,3 +8,5 @@ uvicorn
 aiosqlite
 matplotlib
 boto3
+scipy
+numpy

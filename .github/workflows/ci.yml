@@ -1,0 +1,52 @@
+name: CI - Run Tests
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.11'
+
+      - name: Cache pip dependencies
+        uses: actions/cache@v3
+        with:
+          path: ~/.cache/pip
+          key: ${{ runner.os }}-pip-${{ hashFiles('**/requirements.txt') }}
+          restore-keys: |
+            ${{ runner.os }}-pip-
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Run tests
+        id: run_tests
+        run: |
+          echo "Starting test execution..."
+          python tests.py
+          echo "✅ All tests passed successfully!"
+
+      - name: Test failure notification
+        if: failure()
+        run: |
+          echo "❌ Tests failed! Check the logs above for details."
+          exit 1
+
+      - name: Test success notification
+        if: success()
+        run: |
+          echo "🎉 CI pipeline completed successfully - all tests passed!"

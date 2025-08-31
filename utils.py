@@ -37,8 +37,6 @@ def generate_s3_image_path(image_id: str, file_extension: str = "png") -> str:
 
 def upload_image_to_s3(
     image_buffer: io.BytesIO,
-    bucket_name: str,
-    s3_key: str,
     content_type: str = "image/png",
 ) -> dict:
     """
@@ -72,6 +70,13 @@ def upload_image_to_s3(
             s3_client = boto3.client(
                 "s3",
             )
+
+        # Generate unique ID and S3 path
+        image_id = generate_unique_image_id()
+        s3_key = generate_s3_image_path(image_id)
+
+        # Get S3 bucket from environment
+        bucket_name = os.getenv("S3_BUCKET_NAME")
 
         # Reset buffer position to beginning
         image_buffer.seek(0)
