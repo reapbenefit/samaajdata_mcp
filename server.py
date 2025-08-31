@@ -612,17 +612,14 @@ async def get_data_count_from_samaajdata(
         where_clauses.append(f"em.state = '{state}'")
 
     if event_categories:
-        where_clauses.append(
-            f"em.event_category IN ({', '.join([f'\'{cat}\'' for cat in event_categories])})"
-        )
+        cat_list = ", ".join([f"'{cat}'" for cat in event_categories])
+        where_clauses.append(f"em.event_category IN ({cat_list})")
     if event_subcategories:
-        where_clauses.append(
-            f"em.event_subcategory IN ({', '.join([f'\'{subcat}\'' for subcat in event_subcategories])})"
-        )
+        subcat_list = ", ".join([f"'{subcat}'" for subcat in event_subcategories])
+        where_clauses.append(f"em.event_subcategory IN ({subcat_list})")
     if partners:
-        where_clauses.append(
-            f"em.partner IN ({', '.join([f'\'{partner}\'' for partner in partners])})"
-        )
+        partner_list = ", ".join([f"'{partner}'" for partner in partners])
+        where_clauses.append(f"em.partner IN ({partner_list})")
 
     where_clause = " AND ".join(where_clauses) if where_clauses else "1=1"
 
@@ -655,17 +652,14 @@ async def get_data_metadata_on_samaajdata(
     conn: asyncpg.Connection = await get_db_connection()
     where_clauses = []
     if event_categories:
-        where_clauses.append(
-            f"e.event_category IN ({', '.join([f'\'{cat}\'' for cat in event_categories])})"
-        )
+        cat_list = ", ".join([f"'{cat}'" for cat in event_categories])
+        where_clauses.append(f"e.event_category IN ({cat_list})")
     if event_subcategories:
-        where_clauses.append(
-            f"e.event_subcategory IN ({', '.join([f'\'{subcat}\'' for subcat in event_subcategories])})"
-        )
+        subcat_list = ", ".join([f"'{subcat}'" for subcat in event_subcategories])
+        where_clauses.append(f"e.event_subcategory IN ({subcat_list})")
     if partners:
-        where_clauses.append(
-            f"e.partner IN ({', '.join([f'\'{partner}\'' for partner in partners])})"
-        )
+        partner_list = ", ".join([f"'{partner}'" for partner in partners])
+        where_clauses.append(f"e.partner IN ({partner_list})")
 
     where_clause = " AND ".join(where_clauses) if where_clauses else "1=1"
 
@@ -688,13 +682,17 @@ async def get_data_metadata_on_samaajdata(
     for field_row in field_rows:
         field_name = field_row["field_name"]
 
+        cat_list = ", ".join([f"'{cat}'" for cat in event_categories])
+        subcat_list = ", ".join([f"'{subcat}'" for subcat in event_subcategories])
+        partner_list = ", ".join([f"'{partner}'" for partner in partners])
+
         examples_query = f"""
             SELECT DISTINCT field_value
             FROM "Events Metadata"
             WHERE field_name = $1
-              AND event_category IN ({', '.join([f'\'{cat}\'' for cat in event_categories])})
-              AND event_subcategory IN ({', '.join([f'\'{subcat}\'' for subcat in event_subcategories])})
-              AND partner IN ({', '.join([f'\'{partner}\'' for partner in partners])})
+              AND event_category IN ({cat_list})
+              AND event_subcategory IN ({subcat_list})
+              AND partner IN ({partner_list})
               AND location_id IS NOT NULL
               AND field_value IS NOT NULL
             LIMIT 10
@@ -798,17 +796,14 @@ async def get_data_field_values_on_samaajdata(
 
     # Handle parametrized queries for IN clauses
     if event_categories:
-        filters.append(
-            f"em.event_category IN ({', '.join([f'\'{cat}\'' for cat in event_categories])})"
-        )
+        cat_list = ", ".join([f"'{cat}'" for cat in event_categories])
+        filters.append(f"em.event_category IN ({cat_list})")
     if event_subcategories:
-        filters.append(
-            f"em.event_subcategory IN ({', '.join([f'\'{subcat}\'' for subcat in event_subcategories])})"
-        )
+        subcat_list = ", ".join([f"'{subcat}'" for subcat in event_subcategories])
+        filters.append(f"em.event_subcategory IN ({subcat_list})")
     if partners:
-        filters.append(
-            f"em.partner IN ({', '.join([f'\'{partner}\'' for partner in partners])})"
-        )
+        partner_list = ", ".join([f"'{partner}'" for partner in partners])
+        filters.append(f"em.partner IN ({partner_list})")
 
     where_clause = " AND ".join(filters)
 
