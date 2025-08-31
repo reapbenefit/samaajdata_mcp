@@ -19,6 +19,11 @@ import matplotlib
 import base64
 import io
 from collections import Counter
+from utils import (
+    generate_unique_image_id,
+    generate_s3_image_path,
+    upload_image_to_s3,
+)
 
 load_dotenv()
 
@@ -1007,10 +1012,6 @@ async def create_pie_chart(
         # Save to bytes buffer
         img_buffer = io.BytesIO()
         plt.savefig(img_buffer, format="png", dpi=300, bbox_inches="tight")
-        img_buffer.seek(0)
-
-        # Encode to base64
-        img_base64 = base64.b64encode(img_buffer.getvalue()).decode("utf-8")
 
         # Close the figure to free memory
         plt.close(fig)
@@ -1033,20 +1034,34 @@ async def create_pie_chart(
             ],
         }
 
+        # Generate unique ID and S3 path
+        image_id = generate_unique_image_id()
+        s3_key = generate_s3_image_path(image_id)
+
+        # Get S3 bucket from environment
+        bucket_name = os.getenv("S3_BUCKET_NAME")
+
+        # Upload to S3
+        upload_result = upload_image_to_s3(img_buffer, bucket_name, s3_key)
+
         return {
-            "image_base64": img_base64,
+            "s3_bucket": upload_result["bucket"],
+            "s3_key": upload_result["key"],
+            "public_url": upload_result["public_url"],
             "image_format": "png",
             "chart_type": "pie_chart",
             "data_summary": data_summary,
             "title": title or "Pie Chart",
-            "instructions": "The pie chart has been generated as a base64-encoded PNG image from the counted occurrences of each unique value in your data list. You can display this image or save it to a file. The data_summary provides details about the chart contents including counts and percentages.",
+            "instructions": f"The pie chart has been uploaded to S3 at {upload_result['public_url']}. The data_summary provides details about the chart contents including counts and percentages.",
         }
 
     except Exception as e:
         await ctx.debug(f"Error creating pie chart: {str(e)}")
         return {
             "error": f"Failed to create pie chart: {str(e)}",
-            "image_base64": None,
+            "s3_bucket": None,
+            "s3_key": None,
+            "public_url": None,
             "chart_type": "pie_chart",
         }
 
