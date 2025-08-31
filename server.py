@@ -37,23 +37,12 @@ matplotlib.use("Agg")
 
 DATABASE_URL = os.getenv("DATABASE_URL")
 
+parser = argparse.ArgumentParser()
+parser.add_argument("--port", action="store", type=int, default=8000)
+args = parser.parse_args()
+port = args.port
 
-# @asynccontextmanager
-# async def lifespan(app: FastMCP):
-#     async with app.default_lifespan():
-#         conn = await asyncpg.connect(DATABASE_URL)
-#         try:
-#             yield {"db": conn}  # inject into context
-#         finally:
-#             await conn.close()
-
-
-# parser = argparse.ArgumentParser()
-# parser.add_argument("--port", action="store", type=int, default=8000)
-# args = parser.parse_args()
-# port = args.port
-
-port = 8000
+# port = 8000
 
 mcp = FastMCP("SamaajData MCP server", host="0.0.0.0", port=port)
 
