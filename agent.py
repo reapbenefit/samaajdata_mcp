@@ -76,9 +76,9 @@ async def answer_query(request: QueryRequest):
                 }
             )
         ],
-        input_guardrails=[
-            InputGuardrail(guardrail_function=input_guardrail),
-        ],
+        # input_guardrails=[
+        #     InputGuardrail(guardrail_function=input_guardrail),
+        # ],
     )
 
     result = await Runner.run(agent, request.query)
