@@ -40,10 +40,10 @@ jobs:
             cat > .env << 'ENVEOF'
           DATABASE_URL=${{ secrets.DATABASE_URL }}
           OPENAI_API_KEY=${{ secrets.OPENAI_API_KEY }}
-          ENV=${{ secrets.ENV }}
           S3_BUCKET_NAME=${{ secrets.S3_BUCKET_NAME }}
           S3_FOLDER_NAME=${{ secrets.S3_FOLDER_NAME }}
           AWS_CLOUDFRONT_DISTRIBUTION_URL=${{ secrets.AWS_CLOUDFRONT_DISTRIBUTION_URL }}
+          SAMAAJDATA_MCP_URL=${{ secrets.SAMAAJDATA_MCP_URL }}
           ENVEOF
             
             # Update requirements
@@ -58,12 +58,28 @@ jobs:
             # Start server in background
             nohup python server.py --port 7000 > staging.log 2>&1 &
             
-            # Verify server started
+            # Stop existing agent API if running (ignore errors)
+            pkill -f "uvicorn agent:app.*--port 7003" || true
+            
+            # Wait a moment for process to stop
+            sleep 2
+            
+            # Start agent API in background
+            nohup uvicorn agent:app --reload --port 7003 --host 0.0.0.0 > agent.log 2>&1 &
+            
+            # Verify both services started
             sleep 5
             if pgrep -f "python server.py --port 7000" > /dev/null; then
               echo "Staging server started successfully"
             else
               echo "Failed to start staging server"
+              exit 1
+            fi
+            
+            if pgrep -f "uvicorn agent:app.*--port 7003" > /dev/null; then
+              echo "Agent API started successfully"
+            else
+              echo "Failed to start agent API"
               exit 1
             fi
           EOF

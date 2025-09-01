@@ -50,18 +50,27 @@ jobs:
             # Update requirements
             pip install -r requirements.txt
             
-            # Restart the service using supervisorctl
+            # Restart the services using supervisorctl
             sudo supervisorctl restart mcp
+            sudo supervisorctl restart agent
             
-            # Wait for service to start
+            # Wait for services to start
             sleep 5
             
-            # Verify service is running
+            # Verify services are running
             if sudo supervisorctl status mcp | grep -q "RUNNING"; then
               echo "Production service restarted successfully"
             else
               echo "Failed to restart production service"
               sudo supervisorctl status mcp
+              exit 1
+            fi
+            
+            if sudo supervisorctl status agent | grep -q "RUNNING"; then
+              echo "Agent service restarted successfully"
+            else
+              echo "Failed to restart agent service"
+              sudo supervisorctl status agent
               exit 1
             fi
           EOF
