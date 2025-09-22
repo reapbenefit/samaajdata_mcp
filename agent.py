@@ -4,6 +4,8 @@ import os
 from dotenv import load_dotenv
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from typing import List, Optional
+from datetime import datetime
 
 load_dotenv()
 
@@ -23,6 +25,50 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+
+# Chat history models
+class ChatMessage(BaseModel):
+    role: str  # "user" or "assistant" 
+    content: str
+    timestamp: Optional[datetime] = None
+
+
+class QueryRequest(BaseModel):
+    query: str
+    chat_history: Optional[List[ChatMessage]] = []
+
+
+def build_context_from_history(chat_history: List[ChatMessage], max_messages: int = 8) -> str:
+    """Build context string from chat history to provide to the agent"""
+    if not chat_history:
+        return ""
+    
+    # Get recent messages (limit to avoid token overflow)
+    recent_messages = chat_history[-max_messages:] if len(chat_history) > max_messages else chat_history
+    
+    if not recent_messages:
+        return ""
+    
+    context_parts = [
+        "=== CONVERSATION CONTEXT ===",
+        "Here is the recent conversation history to help you provide contextual responses:",
+        ""
+    ]
+    
+    for msg in recent_messages:
+        role_prefix = "User" if msg.role == "user" else "Assistant"
+        context_parts.append(f"{role_prefix}: {msg.content}")
+    
+    context_parts.extend([
+        "",
+        "=== END CONTEXT ===",
+        "",
+        "Based on this conversation context, please respond to the following new query. Reference previous messages when relevant and maintain conversation continuity:",
+        ""
+    ])
+    
+    return "\n".join(context_parts)
 
 
 async def input_guardrail(ctx, agent, input_data):
@@ -56,15 +102,35 @@ async def input_guardrail(ctx, agent, input_data):
     )
 
 
-class QueryRequest(BaseModel):
-    query: str
-
-
 @app.post("/respond")
 async def answer_query(request: QueryRequest):
+    # Build context from chat history
+    context = build_context_from_history(request.chat_history)
+    
+    # Combine context with the current query
+    enhanced_query = f"{context}{request.query}" if context else request.query
+    
+    # Enhanced instructions that account for conversation context
+    instructions = """You are a helpful assistant that can answer questions about samaajdata using the tools provided. 
+
+    IMPORTANT CONTEXT HANDLING:
+    - If conversation context is provided above, use it to maintain continuity and provide more relevant responses
+    - Reference previous topics, data requests, or visualizations when appropriate
+    - Avoid repeating information already provided unless specifically asked
+    - Build upon previous analysis or extend earlier findings when relevant
+
+    ANALYSIS APPROACH:
+    It is possible that the user's query is very vague and you need to use the tools in multiple steps to answer the question. Try your absolute best to answer the question even if it does not have a lot of details by repeatedly using the appropriate tools out of the ones provided, reflecting on the outputs of the previous steps and analysing if using the tools again can help you answer the question. 
+
+    VISUALIZATION PREFERENCE:
+    The user would highly prefer a visual representation of the data and if you can provide one using the tools provided, do so even if the user hasn't explicitly asked for one in their query. If none of the tools can be used to make the data more visually appealing or readable, use markdown formatting to appropriately format the data as if it can be used in a report analysing the data (e.g. using heading, lists, tables, bold, colors etc.). 
+
+    FALLBACK:
+    If you are not sure about the answer, you can say so and ask the user to provide more details. But do this only after you have exhaustively explored all the possibilities through the tools provided."""
+
     agent = Agent(
         name="Samaajdata Assistant",
-        instructions="You are a helpful assistant that can answer questions about samaajdata using the tools provided. It is possible that the user's query is very vague and you need to use the tools in multiple steps to answer the question. Try your absolute best to answer the question even if it does not have a lot of details by repeatedly using the appropriate tools out of the ones provided, reflecting on the outputs of the previous steps and analysing if using the tools again can help you answer the question. The user would highly prefer a visual representation of the data and if you can provide one using the tools provided, do so even if the user hasn't explicitly asked for one in their query. If none of the tools can be used to make the data more visually appealing or readable, use markdown formatting to appropriately format the data as if it can be used in a report analysing the data (e.g. using heading, lists, tables, bold, colors etc.). If you are not sure about the answer, you can say so and ask the user to provide more details. But do this only after you have exhaustively explored all the possibilities through the tools provided.",
+        instructions=instructions,
         model="gpt-4.1",
         tools=[
             HostedMCPTool(
@@ -81,7 +147,7 @@ async def answer_query(request: QueryRequest):
         # ],
     )
 
-    result = await Runner.run(agent, request.query)
+    result = await Runner.run(agent, enhanced_query)
 
     return result.final_output
 
