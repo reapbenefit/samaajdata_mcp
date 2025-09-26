@@ -30,8 +30,11 @@ jobs:
             # Navigate to staging directory
             cd rb_mcp_staging
             
-            # Pull latest code
-            git pull origin main
+            # Fetch and checkout the selected branch
+            git fetch origin
+            git checkout ${{ github.ref_name }}
+            git pull origin ${{ github.ref_name }}
+            git reset --hard origin/${{ github.ref_name }}
 
             # Activate virtualenv
             source venv/bin/activate
@@ -63,6 +66,8 @@ jobs:
             
             # Wait a moment for process to stop
             sleep 2
+
+            source venv/bin/activate
             
             # Start agent API in background
             nohup uvicorn agent:app --reload --port 7003 --host 0.0.0.0 > agent.log 2>&1 &
