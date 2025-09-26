@@ -65,6 +65,8 @@ jobs:
             
             # Wait a moment for process to stop
             sleep 2
+
+            source venv/bin/activate
             
             # Start agent API in background
             nohup uvicorn agent:app --reload --port 7003 --host 0.0.0.0 > agent.log 2>&1 &
