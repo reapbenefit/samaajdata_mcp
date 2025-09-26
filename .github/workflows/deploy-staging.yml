@@ -2,12 +2,6 @@ name: Deploy to Staging
 
 on:
   workflow_dispatch:
-    inputs:
-      branch:
-        description: "Branch to deploy"
-        required: true
-        default: "main"
-        type: string
 
 jobs:
   deploy:
@@ -18,8 +12,6 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
-        with:
-          ref: ${{ inputs.branch }}
 
       - name: Setup SSH
         uses: webfactory/ssh-agent@v0.8.0
@@ -39,7 +31,7 @@ jobs:
             cd rb_mcp_staging
             
             # Pull latest code
-            git pull origin ${{ inputs.branch }}
+            git pull origin ${{ github.ref_name }}
 
             # Activate virtualenv
             source venv/bin/activate
