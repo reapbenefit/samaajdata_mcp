@@ -1,12 +1,9 @@
-import json
 import os
 from typing import Optional, Literal
 from mcp.server.fastmcp import FastMCP, Context
 import asyncpg
 import pandas as pd
-import json
-from datetime import datetime, timedelta
-from contextlib import asynccontextmanager
+from datetime import datetime
 from datetime import datetime
 from dotenv import load_dotenv
 from db import insert_query
@@ -537,6 +534,27 @@ async def get_event_points_for_area_from_samaajdata(
 ) -> dict:
     """
     Returns all individual event points (latitude, longitude) for a given area and filters from Samaajdata.
+
+    For any data requested for video volunteers, always apply the following base filters on top of which other filters can be applied:
+    - event.subcategory = 'Citizen Initiatives'
+    - (event.hours_invested = 0 OR event.hours_invested = 0.0 OR event.hours_invested = '0.000')
+    - event.location IS NOT NULL
+
+    Parameters:
+        ctx: Internal MCP context (do not supply manually).
+        aggregation_level: Geographic level to match ("district", "state", "hobli_name", or "grama_panchayath").
+        value: Name of the area to match (e.g., "Ludhiana" if aggregation_level="district").
+        start_date: (Optional, format: DD/MM/YYYY) Start date for filtering event creation.
+        end_date: (Optional, format: DD/MM/YYYY) End date for filtering event creation.
+        category: (Optional) Filter to include only events matching this category.
+                  Use values returned by get_valid_categories().
+        subcategory: (Optional) Filter to include only events matching this subcategory.
+                     Use values returned by get_valid_subcategories().
+        type: (Optional) Filter to include only events matching this event type.
+              Use values returned by get_valid_event_types().
+
+    Returns:
+        A dictionary with the key "latlong" containing the list of tuples - [(latitude, longitude)]
     """
     
     main_logger.info(f"Getting event points for {aggregation_level}={value}")
@@ -716,7 +734,8 @@ async def get_data_metadata_on_samaajdata(
 ) -> dict:
     """
     Returns the list of fields for all the data matching the given filters on SamaajData.
-    URLs in responses are automatically formatted as clickable markdown links.
+    When any information is asked about a specific data source or data set or partner data, use this tool to get the list of fields/data points that are available about that data in the database and then, based on the field names and field descriptions, decide if the user's query can be answered with the data available.
+    Get the list of partners along with the appropriate event categories and subcategories using get_data_partners_list() tool.
     """
     
     main_logger.info(f"Getting data metadata for categories={len(event_categories)}, "
@@ -822,6 +841,177 @@ async def get_data_metadata_on_samaajdata(
         finally:
             await conn.close()
             db_logger.debug("Database connection closed")
+
+
+@mcp.tool()
+async def get_data_field_values_on_samaajdata(
+    ctx: Context,
+    field_name: str,
+    event_categories: list[str],
+    event_subcategories: list[str],
+    partners: list[str],
+    aggregation_type: Optional[Literal["unique", "count"]] = None,
+    start_date: Optional[str] = None,
+    end_date: Optional[str] = None,
+    city: Optional[str] = None,
+    state: Optional[str] = None,
+    segregate_by_location: Optional[Literal["city", "state"]] = None,
+    segregate_by_time: Optional[Literal["day", "month", "year"]] = None,
+) -> dict:
+    """
+    Returns all values for a given field from data matching the given filters on SamaajData,
+    with optional segregation by location and/or time.
+
+    Parameters:
+        ctx: Internal MCP context (do not supply manually).
+        field_name: (Required) The name of the field to get values for.
+        event_categories: Filter by event category.
+                  Use values from get_valid_categories().
+        event_subcategories: Filter by event subcategory.
+                     Use values from get_valid_subcategories().
+        partners: Filter by partner.
+                  Use values from get_data_partners_list().
+        aggregation_type: (Optional, Literal["unique", "count"]) The type of aggregation to perform on the field values.
+        start_date: (Optional, format: DD/MM/YYYY) Start date for filtering event creation.
+        end_date: (Optional, format: DD/MM/YYYY) End date for filtering event creation.
+        city: (Optional) Filter by city.
+        state: (Optional) Filter by state.
+        segregate_by_location: (Optional, Literal["city", "state"]) Segregate results by city or state.
+        segregate_by_time: (Optional, Literal["day", "month", "year"]) Segregate results by day, month, or year.
+
+    Returns:
+        dict: Structure varies based on segregation options:
+        - No segregation: {"values": [value_1, value_2, ...]} or {"values": {"value_1": count_1, ...}}
+        - Location only: {"values": {"location_1": [...], "location_2": [...]}}
+        - Time only: {"values": {"time_period_1": [...], "time_period_2": [...]}}
+        - Both: {"values": {"location_1": {"time_period_1": [...], ...}, ...}}
+    """
+
+    conn: asyncpg.Connection = await get_db_connection()
+
+    filters = ["em.location_id IS NOT NULL", f"em.field_name = '{field_name}'"]
+    params = {}
+
+    if start_date:
+        try:
+            start_dt = datetime.strptime(start_date, "%d/%m/%Y")
+            filters.append(f"em.creation >= '{start_dt.date().isoformat()}'")
+        except Exception:
+            pass
+    if end_date:
+        try:
+            end_dt = datetime.strptime(end_date, "%d/%m/%Y")
+            filters.append(f"em.creation <= '{end_dt.date().isoformat()}'")
+        except Exception:
+            pass
+    if city:
+        filters.append(f"em.city = '{city}'")
+    if state:
+        filters.append(f"em.state = '{state}'")
+
+    # Handle parametrized queries for IN clauses
+    if event_categories:
+        cat_list = ", ".join([f"'{cat}'" for cat in event_categories])
+        filters.append(f"em.event_category IN ({cat_list})")
+    if event_subcategories:
+        subcat_list = ", ".join([f"'{subcat}'" for subcat in event_subcategories])
+        filters.append(f"em.event_subcategory IN ({subcat_list})")
+    if partners:
+        partner_list = ", ".join([f"'{partner}'" for partner in partners])
+        filters.append(f"em.partner IN ({partner_list})")
+
+    where_clause = " AND ".join(filters)
+
+    # Build SELECT clause based on segregation options
+    select_fields = ["em.field_value"]
+    if segregate_by_location:
+        select_fields.append(f"em.{segregate_by_location}")
+    if segregate_by_time:
+        if segregate_by_time == "day":
+            select_fields.append("DATE(em.creation) as time_period")
+        elif segregate_by_time == "month":
+            select_fields.append("TO_CHAR(em.creation, 'YYYY-MM') as time_period")
+        elif segregate_by_time == "year":
+            select_fields.append("EXTRACT(YEAR FROM em.creation) as time_period")
+
+    query = f"""
+        SELECT {', '.join(select_fields)}
+        FROM "Events Metadata" em
+        WHERE {where_clause}
+    """
+
+    await ctx.debug(f"Query: {query}")
+
+    rows = await conn.fetch(query)
+
+    await conn.close()
+
+    # Process results based on segregation options
+    if not segregate_by_location and not segregate_by_time:
+        # No segregation - original behavior
+        results = []
+        for row in rows:
+            field_value = row["field_value"]
+            if field_value and field_value.strip():
+                results.append(field_value)
+
+        if aggregation_type == "unique":
+            results = list(set(results))
+        elif aggregation_type == "count":
+            results = dict(Counter(results))
+
+        if isinstance(results, list) and len(results) > 1000:
+            results = random.sample(results, 1000)
+
+        return {"values": results}
+
+    else:
+        # Segregated results
+        segregated_data = {}
+
+        for row in rows:
+            field_value = row["field_value"]
+            if not field_value or not field_value.strip():
+                continue
+
+            # Determine primary key (location or time or both)
+            keys = []
+            if segregate_by_location:
+                location_key = row[segregate_by_location] or "Unknown"
+                keys.append(str(location_key))
+            if segregate_by_time:
+                time_key = row["time_period"] or "Unknown"
+                keys.append(str(time_key))
+
+            # Build nested structure
+            current_dict = segregated_data
+            for i, key in enumerate(keys[:-1]):
+                if key not in current_dict:
+                    current_dict[key] = {}
+                current_dict = current_dict[key]
+
+            # Add to the final level
+            final_key = keys[-1]
+            if final_key not in current_dict:
+                current_dict[final_key] = []
+            current_dict[final_key].append(field_value)
+
+        # Apply aggregation to leaf nodes
+        def apply_aggregation(data):
+            if isinstance(data, list):
+                if aggregation_type == "unique":
+                    result = list(set(data))
+                    return result[:1000] if len(result) > 1000 else result
+                elif aggregation_type == "count":
+                    return dict(Counter(data))
+                else:
+                    return data[:1000] if len(data) > 1000 else data
+            elif isinstance(data, dict):
+                return {k: apply_aggregation(v) for k, v in data.items()}
+            return data
+
+        segregated_data = apply_aggregation(segregated_data)
+        return {"values": segregated_data}
 
 # ==================== PLOTTING TOOLS ====================
 
