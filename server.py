@@ -49,7 +49,10 @@ matplotlib.use("Agg")
 main_logger.info("Matplotlib backend set to 'Agg' for non-interactive use")
 
 DATABASE_URL = os.getenv("DATABASE_URL")
-main_logger.info(f"Database URL configured: {DATABASE_URL[:50]}...")
+if DATABASE_URL:
+    main_logger.info(f"Database URL configured: {DATABASE_URL[:50]}...")
+else:
+    main_logger.warning("DATABASE_URL not set - using environment configuration")
 
 parser = argparse.ArgumentParser()
 parser.add_argument("--port", action="store", type=int, default=8000)
