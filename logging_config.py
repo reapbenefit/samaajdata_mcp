@@ -3,7 +3,7 @@ import time
 import functools
 import asyncio
 from contextlib import asynccontextmanager, contextmanager
-from typing import Optional, Any, Dict
+from typing import Any, Dict
 import json
 from datetime import datetime
 import os
@@ -251,31 +251,32 @@ class DatabasePerformanceLogger:
     
     def __init__(self):
         self.logger = db_logger
-    
+
+    @asynccontextmanager
     async def log_query(self, query: str, params: Dict[str, Any] = None, 
                        operation_type: str = "query"):
         """Log database query with timing"""
         start_time = time.time()
-        
-        # Sanitize query for logging (remove sensitive data)
+
+        # Sanitize query for logging (avoid dumping entire huge SQL)
         sanitized_query = query[:200] + "..." if len(query) > 200 else query
-        
+
         try:
             self.logger.info(f"Executing {operation_type}: {sanitized_query}")
             if params:
                 self.logger.debug(f"Query parameters: {json.dumps(params, default=str)}")
-            
-            yield
-            
+
+            yield  # allow async with block to run the query
+
         except Exception as e:
             duration = time.time() - start_time
             self.logger.error(f"Query failed after {duration*1000:.2f}ms: {str(e)}")
             self.logger.error(f"Failed query: {sanitized_query}")
             raise
-            
+
         finally:
             duration = time.time() - start_time
-            if duration > 1.0:  # Log slow queries
+            if duration > 1.0:  # Log slow queries (>1s)
                 self.logger.warning(f"Slow query detected: {duration*1000:.2f}ms - {sanitized_query}")
             else:
                 self.logger.info(f"Query completed in {duration*1000:.2f}ms")
