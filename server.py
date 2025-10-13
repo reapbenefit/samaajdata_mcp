@@ -15,6 +15,7 @@ import matplotlib
 import io
 from collections import Counter
 import numpy as np
+from contextlib import asynccontextmanager
 
 # Import logging functionality
 from logging_config import (
@@ -141,6 +142,7 @@ def format_urls_as_markdown_links(text: str) -> str:
 
 # ==================== DATABASE CONNECTION ====================
 
+@asynccontextmanager
 @log_execution_time("get_db_connection", db_logger)
 async def get_db_connection():
     """Get database connection with logging"""
@@ -148,7 +150,11 @@ async def get_db_connection():
         db_logger.info(f"Establishing PostgreSQL connection to: {DATABASE_URL[:50] if DATABASE_URL else 'Not configured'}...")
         conn = await asyncpg.connect(DATABASE_URL)
         db_logger.debug("PostgreSQL connection established successfully")
-        return conn
+        try:
+            yield conn  # <-- yield instead of return
+        finally:
+            await conn.close()
+            db_logger.debug("PostgreSQL connection closed")
 
 # ==================== EXISTING TOOLS ====================
 
@@ -161,12 +167,10 @@ async def get_valid_categories(ctx: Context) -> list[str]:
     use this method to get the list of valid categories to pick from
     """
     async with log_async_operation("get_valid_categories_query", perf_logger):
-        conn: asyncpg.Connection = await get_db_connection()
-        
-        query = 'SELECT * from "tabEvent Category"'
-        db_logger.info(f"Executing query: {query}")
-        
-        try:
+        async with get_db_connection() as conn:            
+            query = 'SELECT * from "tabEvent Category"'
+            db_logger.info(f"Executing query: {query}")
+            
             async with db_perf_logger.log_query(query, operation_type="SELECT"):
                 rows = await conn.fetch(query)
             
@@ -176,10 +180,6 @@ async def get_valid_categories(ctx: Context) -> list[str]:
             main_logger.info(f"Retrieved {len(result)} valid categories")
             
             return result
-            
-        finally:
-            await conn.close()
-            db_logger.debug("Database connection closed")
 
 @mcp.tool()
 @log_execution_time("get_valid_subcategories")
@@ -191,12 +191,10 @@ async def get_valid_subcategories(ctx: Context) -> list[str]:
     if the category is also picked and the user query requires further filtering beyond category.
     """
     async with log_async_operation("get_valid_subcategories_query", perf_logger):
-        conn: asyncpg.Connection = await get_db_connection()
-
-        query = 'SELECT * from "tabEvent Sub Category"'
-        db_logger.info(f"Executing query: {query}")
+        async with get_db_connection() as conn:
+            query = 'SELECT * from "tabEvent Sub Category"'
+            db_logger.info(f"Executing query: {query}")
         
-        try:
             async with db_perf_logger.log_query(query, operation_type="SELECT"):
                 rows = await conn.fetch(query)
 
@@ -206,10 +204,6 @@ async def get_valid_subcategories(ctx: Context) -> list[str]:
             main_logger.info(f"Retrieved {len(result)} valid subcategories")
             
             return result
-            
-        finally:
-            await conn.close()
-            db_logger.debug("Database connection closed")
 
 @mcp.tool()
 @log_execution_time("get_valid_event_types")
@@ -220,12 +214,10 @@ async def get_valid_event_types(ctx: Context) -> list[str]:
     use this method to get the list of valid types to pick from.
     """
     async with log_async_operation("get_valid_event_types_query", perf_logger):
-        conn: asyncpg.Connection = await get_db_connection()
-
-        query = 'SELECT * from "tabEvent Type"'
-        db_logger.info(f"Executing query: {query}")
+        async with get_db_connection() as conn:
+            query = 'SELECT * from "tabEvent Type"'
+            db_logger.info(f"Executing query: {query}")
         
-        try:
             async with db_perf_logger.log_query(query, operation_type="SELECT"):
                 rows = await conn.fetch(query)
 
@@ -235,10 +227,6 @@ async def get_valid_event_types(ctx: Context) -> list[str]:
             main_logger.info(f"Retrieved {len(result)} valid event types")
             
             return result
-            
-        finally:
-            await conn.close()
-            db_logger.debug("Database connection closed")
 
 @mcp.tool()
 @log_execution_time("get_data_partners_list")
@@ -254,17 +242,16 @@ async def get_data_partners_list(ctx: Context) -> dict:
     partner/category/subcategory filters.
     """
     async with log_async_operation("get_data_partners_list_query", perf_logger):
-        conn: asyncpg.Connection = await get_db_connection()
+        async with get_db_connection() as conn:
 
-        query = """
-            SELECT DISTINCT partner, event_category, event_subcategory
-            FROM "Events Metadata"
-            WHERE partner IS NOT NULL AND partner <> ''
-        """
-        
-        db_logger.info(f"Executing partners query: {query}")
-        
-        try:
+            query = """
+                SELECT DISTINCT partner, event_category, event_subcategory
+                FROM "Events Metadata"
+                WHERE partner IS NOT NULL AND partner <> ''
+            """
+            
+            db_logger.info(f"Executing partners query: {query}")
+            
             async with db_perf_logger.log_query(query, operation_type="SELECT"):
                 rows = await conn.fetch(query)
 
@@ -284,22 +271,17 @@ async def get_data_partners_list(ctx: Context) -> dict:
             main_logger.info(f"Retrieved {len(result['result'])} partner entries")
             
             return result
-            
-        finally:
-            await conn.close()
-            db_logger.debug("Database connection closed")
 
 @mcp.tool()
 @log_execution_time("test_db_connection")
 async def test_db_connection(ctx: Context) -> list[str]:
     """Test database connection and return sample data"""
     async with log_async_operation("test_db_connection_query", perf_logger):
-        conn: asyncpg.Connection = await get_db_connection()
+        async with get_db_connection() as conn:
         
-        query = "SELECT title FROM tabEvents LIMIT 10"
-        db_logger.info(f"Testing database with query: {query}")
-        
-        try:
+            query = "SELECT title FROM tabEvents LIMIT 10"
+            db_logger.info(f"Testing database with query: {query}")
+
             async with db_perf_logger.log_query(query, operation_type="SELECT"):
                 rows = await conn.fetch(query)
             
@@ -307,10 +289,6 @@ async def test_db_connection(ctx: Context) -> list[str]:
             main_logger.info(f"Database test successful, retrieved {len(result)} sample titles")
             
             return result
-            
-        finally:
-            await conn.close()
-            db_logger.debug("Database connection closed")
 
 # ==================== LOCATION DISCOVERY TOOLS (NEW) ====================
 
@@ -335,33 +313,32 @@ async def get_available_locations_for_category(
                     f"subcategory={subcategory}, partner={partner}")
     
     async with log_async_operation("get_available_locations_query", perf_logger):
-        conn: asyncpg.Connection = await get_db_connection()
+        async with get_db_connection() as conn:
         
-        where_clauses = []
-        if category:
-            where_clauses.append(f"em.event_category = '{category}'")
-        if subcategory:
-            where_clauses.append(f"em.event_subcategory = '{subcategory}'")
-        if partner:
-            where_clauses.append(f"em.partner = '{partner}'")
+            where_clauses = []
+            if category:
+                where_clauses.append(f"em.event_category = '{category}'")
+            if subcategory:
+                where_clauses.append(f"em.event_subcategory = '{subcategory}'")
+            if partner:
+                where_clauses.append(f"em.partner = '{partner}'")
+            
+            where_clause = " AND ".join(where_clauses) if where_clauses else "1=1"
+            
+            query = f"""
+                SELECT 
+                    em.{location_level} as location,
+                    COUNT(DISTINCT em.event_id) as count
+                FROM "Events Metadata" em
+                WHERE {where_clause}
+                    AND em.{location_level} IS NOT NULL
+                    AND em.{location_level} <> ''
+                GROUP BY em.{location_level}
+                ORDER BY count DESC
+            """
+            
+            db_logger.info(f"Executing query: {query}")
         
-        where_clause = " AND ".join(where_clauses) if where_clauses else "1=1"
-        
-        query = f"""
-            SELECT 
-                em.{location_level} as location,
-                COUNT(DISTINCT em.event_id) as count
-            FROM "Events Metadata" em
-            WHERE {where_clause}
-                AND em.{location_level} IS NOT NULL
-                AND em.{location_level} <> ''
-            GROUP BY em.{location_level}
-            ORDER BY count DESC
-        """
-        
-        db_logger.info(f"Executing query: {query}")
-        
-        try:
             async with db_perf_logger.log_query(query, operation_type="SELECT"):
                 rows = await conn.fetch(query)
             
@@ -393,10 +370,6 @@ async def get_available_locations_for_category(
             main_logger.info(f"Retrieved {len(rows)} available {location_level}s")
             
             return result
-            
-        finally:
-            await conn.close()
-            db_logger.debug("Database connection closed")
 
 @mcp.tool()
 @log_execution_time("get_location_hierarchy")
@@ -414,42 +387,41 @@ async def get_location_hierarchy(
     main_logger.info(f"Getting location hierarchy for city={city}, state={state}, district={district}")
     
     async with log_async_operation("get_location_hierarchy_query", perf_logger):
-        conn: asyncpg.Connection = await get_db_connection()
+        async with get_db_connection() as conn:
         
-        if city:
-            city_variations = normalize_city_name(city)
-            city_clause = " OR ".join([f"l.city = '{var}'" for var in city_variations])
-        else:
-            city_clause = "1=1"
+            if city:
+                city_variations = normalize_city_name(city)
+                city_clause = " OR ".join([f"l.city = '{var}'" for var in city_variations])
+            else:
+                city_clause = "1=1"
+            
+            where_clauses = []
+            if city:
+                where_clauses.append(f"({city_clause})")
+            if state:
+                where_clauses.append(f"l.state = '{state}'")
+            if district:
+                where_clauses.append(f"l.district = '{district}'")
+            
+            where_clause = " AND ".join(where_clauses) if where_clauses else "1=1"
+            
+            query = f"""
+                SELECT DISTINCT
+                    l.state,
+                    l.district,
+                    l.city,
+                    l.hobli_name,
+                    l.grama_panchayath,
+                    COUNT(*) OVER (PARTITION BY l.state, l.city) as city_count,
+                    COUNT(*) OVER (PARTITION BY l.state, l.district) as district_count
+                FROM "tabLocation" l
+                WHERE {where_clause}
+                ORDER BY l.state, l.city, l.district, l.hobli_name
+                LIMIT 100
+            """
+            
+            db_logger.info(f"Executing hierarchy query")
         
-        where_clauses = []
-        if city:
-            where_clauses.append(f"({city_clause})")
-        if state:
-            where_clauses.append(f"l.state = '{state}'")
-        if district:
-            where_clauses.append(f"l.district = '{district}'")
-        
-        where_clause = " AND ".join(where_clauses) if where_clauses else "1=1"
-        
-        query = f"""
-            SELECT DISTINCT
-                l.state,
-                l.district,
-                l.city,
-                l.hobli_name,
-                l.grama_panchayath,
-                COUNT(*) OVER (PARTITION BY l.state, l.city) as city_count,
-                COUNT(*) OVER (PARTITION BY l.state, l.district) as district_count
-            FROM "tabLocation" l
-            WHERE {where_clause}
-            ORDER BY l.state, l.city, l.district, l.hobli_name
-            LIMIT 100
-        """
-        
-        db_logger.info(f"Executing hierarchy query")
-        
-        try:
             async with db_perf_logger.log_query(query, operation_type="SELECT"):
                 rows = await conn.fetch(query)
             
@@ -513,10 +485,6 @@ async def get_location_hierarchy(
             main_logger.info(f"Retrieved location hierarchy with {len(rows)} entries")
             
             return hierarchy
-            
-        finally:
-            await conn.close()
-            db_logger.debug("Database connection closed")
 
 # ==================== DATA QUERY TOOLS ====================
 
@@ -627,9 +595,8 @@ async def get_event_points_for_area_from_samaajdata(
 
         await ctx.debug(f"Query:\n{query}")
         
-        conn: asyncpg.Connection = await get_db_connection()
+        async with get_db_connection() as conn:
         
-        try:
             async with db_perf_logger.log_query(query, {"filters": filter_count}, "SELECT"):
                 rows = await conn.fetch(query)
 
@@ -643,10 +610,6 @@ async def get_event_points_for_area_from_samaajdata(
                 "latlong": result_data,
                 "description": "For the given query, the lat/long of the event points have been returned. You can use this to display a scatter plot on a map.",
             }
-            
-        finally:
-            await conn.close()
-            db_logger.debug("Database connection closed")
 
 @mcp.tool()
 @log_execution_time("get_data_count_from_samaajdata")
@@ -669,47 +632,46 @@ async def get_data_count_from_samaajdata(
                     f"subcategories={len(event_subcategories)}, partners={len(partners)}")
     
     async with log_async_operation("get_data_count_processing", perf_logger):
-        conn: asyncpg.Connection = await get_db_connection()
+        async with get_db_connection() as conn:
 
-        where_clauses = []
+            where_clauses = []
 
-        if start_date:
-            where_clauses.append(f"em.creation >= '{start_date}'")
-        if end_date:
-            where_clauses.append(f"em.creation <= '{end_date}'")
+            if start_date:
+                where_clauses.append(f"em.creation >= '{start_date}'")
+            if end_date:
+                where_clauses.append(f"em.creation <= '{end_date}'")
+            
+            # ENHANCED: Use city name normalization
+            if city:
+                city_variations = normalize_city_name(city)
+                city_clause = " OR ".join([f"em.city = '{var}'" for var in city_variations])
+                where_clauses.append(f"({city_clause})")
+            
+            if state:
+                where_clauses.append(f"em.state = '{state}'")
+
+            if event_categories:
+                cat_list = ", ".join([f"'{cat}'" for cat in event_categories])
+                where_clauses.append(f"em.event_category IN ({cat_list})")
+            if event_subcategories:
+                subcat_list = ", ".join([f"'{subcat}'" for subcat in event_subcategories])
+                where_clauses.append(f"em.event_subcategory IN ({subcat_list})")
+            if partners:
+                partner_list = ", ".join([f"'{partner}'" for partner in partners])
+                where_clauses.append(f"em.partner IN ({partner_list})")
+
+            where_clause = " AND ".join(where_clauses) if where_clauses else "1=1"
+            
+            main_logger.info(f"Applied {len(where_clauses)} filters to count query")
+
+            query = f"""
+                SELECT COUNT(DISTINCT em.event_id) as count
+                FROM "Events Metadata" em
+                WHERE {where_clause}
+            """
+
+            await ctx.debug(f"Query: {query}")
         
-        # ENHANCED: Use city name normalization
-        if city:
-            city_variations = normalize_city_name(city)
-            city_clause = " OR ".join([f"em.city = '{var}'" for var in city_variations])
-            where_clauses.append(f"({city_clause})")
-        
-        if state:
-            where_clauses.append(f"em.state = '{state}'")
-
-        if event_categories:
-            cat_list = ", ".join([f"'{cat}'" for cat in event_categories])
-            where_clauses.append(f"em.event_category IN ({cat_list})")
-        if event_subcategories:
-            subcat_list = ", ".join([f"'{subcat}'" for subcat in event_subcategories])
-            where_clauses.append(f"em.event_subcategory IN ({subcat_list})")
-        if partners:
-            partner_list = ", ".join([f"'{partner}'" for partner in partners])
-            where_clauses.append(f"em.partner IN ({partner_list})")
-
-        where_clause = " AND ".join(where_clauses) if where_clauses else "1=1"
-        
-        main_logger.info(f"Applied {len(where_clauses)} filters to count query")
-
-        query = f"""
-            SELECT COUNT(DISTINCT em.event_id) as count
-            FROM "Events Metadata" em
-            WHERE {where_clause}
-        """
-
-        await ctx.debug(f"Query: {query}")
-        
-        try:
             async with db_perf_logger.log_query(query, {"filter_count": len(where_clauses)}, "COUNT"):
                 count_row = await conn.fetchrow(query)
             
@@ -719,10 +681,6 @@ async def get_data_count_from_samaajdata(
             performance_metrics.record_metric("data_count_result", count_result, "count")
             
             return {"count": count_result}
-            
-        finally:
-            await conn.close()
-            db_logger.debug("Database connection closed")
 
 @mcp.tool()
 @log_execution_time("get_data_metadata_on_samaajdata")
@@ -742,33 +700,32 @@ async def get_data_metadata_on_samaajdata(
                     f"subcategories={len(event_subcategories)}, partners={len(partners)}")
     
     async with log_async_operation("get_data_metadata_processing", perf_logger):
-        conn: asyncpg.Connection = await get_db_connection()
+        async with get_db_connection() as conn:
         
-        where_clauses = []
-        if event_categories:
-            cat_list = ", ".join([f"'{cat}'" for cat in event_categories])
-            where_clauses.append(f"e.event_category IN ({cat_list})")
-        if event_subcategories:
-            subcat_list = ", ".join([f"'{subcat}'" for subcat in event_subcategories])
-            where_clauses.append(f"e.event_subcategory IN ({subcat_list})")
-        if partners:
-            partner_list = ", ".join([f"'{partner}'" for partner in partners])
-            where_clauses.append(f"e.partner IN ({partner_list})")
+            where_clauses = []
+            if event_categories:
+                cat_list = ", ".join([f"'{cat}'" for cat in event_categories])
+                where_clauses.append(f"e.event_category IN ({cat_list})")
+            if event_subcategories:
+                subcat_list = ", ".join([f"'{subcat}'" for subcat in event_subcategories])
+                where_clauses.append(f"e.event_subcategory IN ({subcat_list})")
+            if partners:
+                partner_list = ", ".join([f"'{partner}'" for partner in partners])
+                where_clauses.append(f"e.partner IN ({partner_list})")
 
-        where_clause = " AND ".join(where_clauses) if where_clauses else "1=1"
+            where_clause = " AND ".join(where_clauses) if where_clauses else "1=1"
 
-        fields_query = f"""
-            SELECT DISTINCT
-                e.field_name, 
-                e.field_definition
-            FROM "Events Metadata" e
-            WHERE {where_clause}
-            ORDER BY e.field_name
-        """
+            fields_query = f"""
+                SELECT DISTINCT
+                    e.field_name, 
+                    e.field_definition
+                FROM "Events Metadata" e
+                WHERE {where_clause}
+                ORDER BY e.field_name
+            """
 
-        await ctx.debug(f"Fields Query: {fields_query}")
+            await ctx.debug(f"Fields Query: {fields_query}")
         
-        try:
             async with db_perf_logger.log_query(fields_query, {"filter_count": len(where_clauses)}, "SELECT"):
                 field_rows = await conn.fetch(fields_query)
 
@@ -837,11 +794,6 @@ async def get_data_metadata_on_samaajdata(
             main_logger.info(f"Metadata processing complete: {len(result['fields'])} fields with examples")
             
             return result
-            
-        finally:
-            await conn.close()
-            db_logger.debug("Database connection closed")
-
 
 @mcp.tool()
 async def get_data_field_values_on_samaajdata(
@@ -861,99 +813,64 @@ async def get_data_field_values_on_samaajdata(
     """
     Returns all values for a given field from data matching the given filters on SamaajData,
     with optional segregation by location and/or time.
-
-    Parameters:
-        ctx: Internal MCP context (do not supply manually).
-        field_name: (Required) The name of the field to get values for.
-        event_categories: Filter by event category.
-                  Use values from get_valid_categories().
-        event_subcategories: Filter by event subcategory.
-                     Use values from get_valid_subcategories().
-        partners: Filter by partner.
-                  Use values from get_data_partners_list().
-        aggregation_type: (Optional, Literal["unique", "count"]) The type of aggregation to perform on the field values.
-        start_date: (Optional, format: DD/MM/YYYY) Start date for filtering event creation.
-        end_date: (Optional, format: DD/MM/YYYY) End date for filtering event creation.
-        city: (Optional) Filter by city.
-        state: (Optional) Filter by state.
-        segregate_by_location: (Optional, Literal["city", "state"]) Segregate results by city or state.
-        segregate_by_time: (Optional, Literal["day", "month", "year"]) Segregate results by day, month, or year.
-
-    Returns:
-        dict: Structure varies based on segregation options:
-        - No segregation: {"values": [value_1, value_2, ...]} or {"values": {"value_1": count_1, ...}}
-        - Location only: {"values": {"location_1": [...], "location_2": [...]}}
-        - Time only: {"values": {"time_period_1": [...], "time_period_2": [...]}}
-        - Both: {"values": {"location_1": {"time_period_1": [...], ...}, ...}}
     """
 
-    conn: asyncpg.Connection = await get_db_connection()
+    async with get_db_connection() as conn:  # <-- use async context manager
+        filters = ["em.location_id IS NOT NULL", f"em.field_name = '{field_name}'"]
 
-    filters = ["em.location_id IS NOT NULL", f"em.field_name = '{field_name}'"]
-    params = {}
+        if start_date:
+            try:
+                start_dt = datetime.strptime(start_date, "%d/%m/%Y")
+                filters.append(f"em.creation >= '{start_dt.date().isoformat()}'")
+            except Exception:
+                pass
+        if end_date:
+            try:
+                end_dt = datetime.strptime(end_date, "%d/%m/%Y")
+                filters.append(f"em.creation <= '{end_dt.date().isoformat()}'")
+            except Exception:
+                pass
+        if city:
+            filters.append(f"em.city = '{city}'")
+        if state:
+            filters.append(f"em.state = '{state}'")
 
-    if start_date:
-        try:
-            start_dt = datetime.strptime(start_date, "%d/%m/%Y")
-            filters.append(f"em.creation >= '{start_dt.date().isoformat()}'")
-        except Exception:
-            pass
-    if end_date:
-        try:
-            end_dt = datetime.strptime(end_date, "%d/%m/%Y")
-            filters.append(f"em.creation <= '{end_dt.date().isoformat()}'")
-        except Exception:
-            pass
-    if city:
-        filters.append(f"em.city = '{city}'")
-    if state:
-        filters.append(f"em.state = '{state}'")
+        if event_categories:
+            cat_list = ", ".join([f"'{cat}'" for cat in event_categories])
+            filters.append(f"em.event_category IN ({cat_list})")
+        if event_subcategories:
+            subcat_list = ", ".join([f"'{subcat}'" for subcat in event_subcategories])
+            filters.append(f"em.event_subcategory IN ({subcat_list})")
+        if partners:
+            partner_list = ", ".join([f"'{partner}'" for partner in partners])
+            filters.append(f"em.partner IN ({partner_list})")
 
-    # Handle parametrized queries for IN clauses
-    if event_categories:
-        cat_list = ", ".join([f"'{cat}'" for cat in event_categories])
-        filters.append(f"em.event_category IN ({cat_list})")
-    if event_subcategories:
-        subcat_list = ", ".join([f"'{subcat}'" for subcat in event_subcategories])
-        filters.append(f"em.event_subcategory IN ({subcat_list})")
-    if partners:
-        partner_list = ", ".join([f"'{partner}'" for partner in partners])
-        filters.append(f"em.partner IN ({partner_list})")
+        where_clause = " AND ".join(filters)
 
-    where_clause = " AND ".join(filters)
+        # Build SELECT clause
+        select_fields = ["em.field_value"]
+        if segregate_by_location:
+            select_fields.append(f"em.{segregate_by_location}")
+        if segregate_by_time:
+            if segregate_by_time == "day":
+                select_fields.append("DATE(em.creation) as time_period")
+            elif segregate_by_time == "month":
+                select_fields.append("TO_CHAR(em.creation, 'YYYY-MM') as time_period")
+            elif segregate_by_time == "year":
+                select_fields.append("EXTRACT(YEAR FROM em.creation) as time_period")
 
-    # Build SELECT clause based on segregation options
-    select_fields = ["em.field_value"]
-    if segregate_by_location:
-        select_fields.append(f"em.{segregate_by_location}")
-    if segregate_by_time:
-        if segregate_by_time == "day":
-            select_fields.append("DATE(em.creation) as time_period")
-        elif segregate_by_time == "month":
-            select_fields.append("TO_CHAR(em.creation, 'YYYY-MM') as time_period")
-        elif segregate_by_time == "year":
-            select_fields.append("EXTRACT(YEAR FROM em.creation) as time_period")
+        query = f"""
+            SELECT {', '.join(select_fields)}
+            FROM "Events Metadata" em
+            WHERE {where_clause}
+        """
 
-    query = f"""
-        SELECT {', '.join(select_fields)}
-        FROM "Events Metadata" em
-        WHERE {where_clause}
-    """
+        await ctx.debug(f"Query: {query}")
+        rows = await conn.fetch(query)
 
-    await ctx.debug(f"Query: {query}")
-
-    rows = await conn.fetch(query)
-
-    await conn.close()
-
-    # Process results based on segregation options
+    # Process results outside the connection context
     if not segregate_by_location and not segregate_by_time:
-        # No segregation - original behavior
-        results = []
-        for row in rows:
-            field_value = row["field_value"]
-            if field_value and field_value.strip():
-                results.append(field_value)
+        results = [row["field_value"] for row in rows if row["field_value"] and row["field_value"].strip()]
 
         if aggregation_type == "unique":
             results = list(set(results))
@@ -966,15 +883,12 @@ async def get_data_field_values_on_samaajdata(
         return {"values": results}
 
     else:
-        # Segregated results
         segregated_data = {}
-
         for row in rows:
             field_value = row["field_value"]
             if not field_value or not field_value.strip():
                 continue
 
-            # Determine primary key (location or time or both)
             keys = []
             if segregate_by_location:
                 location_key = row[segregate_by_location] or "Unknown"
@@ -983,20 +897,17 @@ async def get_data_field_values_on_samaajdata(
                 time_key = row["time_period"] or "Unknown"
                 keys.append(str(time_key))
 
-            # Build nested structure
             current_dict = segregated_data
             for i, key in enumerate(keys[:-1]):
                 if key not in current_dict:
                     current_dict[key] = {}
                 current_dict = current_dict[key]
 
-            # Add to the final level
             final_key = keys[-1]
             if final_key not in current_dict:
                 current_dict[final_key] = []
             current_dict[final_key].append(field_value)
 
-        # Apply aggregation to leaf nodes
         def apply_aggregation(data):
             if isinstance(data, list):
                 if aggregation_type == "unique":
