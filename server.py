@@ -1163,6 +1163,9 @@ async def create_bar_chart(
 
         try:
             with log_sync_operation("bar_chart_validation", main_logger):
+                main_logger.info(f"Received data keys: {list(data.keys()) if data else 'None'}")
+                main_logger.info(f"Data type: {type(data)}")
+                
                 if not data or not isinstance(data, dict):
                     raise ValueError("Data must be a non-empty dictionary")
 
