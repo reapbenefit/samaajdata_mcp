@@ -355,25 +355,62 @@ async def get_available_locations_for_category(
         
         where_clause = " AND ".join(where_clauses) if where_clauses else "1=1"
         
-        query = f"""
-            SELECT 
-                em.{location_level} as location,
-                COUNT(DISTINCT em.event_id) as count
-            FROM "Events Metadata" em
-            WHERE {where_clause}
-                AND em.{location_level} IS NOT NULL
-                AND em.{location_level} <> ''
-            GROUP BY em.{location_level}
-            ORDER BY count DESC
-        """
+        # FIXED: Check if the location_level column exists in Events Metadata table
+        # The Events Metadata table might not have district column directly
+        # We need to join with tabLocation to get district information
+        if location_level == "district":
+            query = f"""
+                SELECT 
+                    l.district as location,
+                    COUNT(DISTINCT em.event_id) as count
+                FROM "Events Metadata" em
+                LEFT JOIN "tabLocation" l ON em.location_id = l.name
+                WHERE {where_clause}
+                    AND l.district IS NOT NULL
+                    AND l.district <> ''
+                GROUP BY l.district
+                ORDER BY count DESC
+            """
+        elif location_level == "state":
+            # Check if state column exists in Events Metadata or need to join
+            query = f"""
+                SELECT 
+                    COALESCE(em.state, l.state) as location,
+                    COUNT(DISTINCT em.event_id) as count
+                FROM "Events Metadata" em
+                LEFT JOIN "tabLocation" l ON em.location_id = l.name
+                WHERE {where_clause}
+                    AND COALESCE(em.state, l.state) IS NOT NULL
+                    AND COALESCE(em.state, l.state) <> ''
+                GROUP BY COALESCE(em.state, l.state)
+                ORDER BY count DESC
+            """
+        else:  # city
+            query = f"""
+                SELECT 
+                    COALESCE(em.city, l.city) as location,
+                    COUNT(DISTINCT em.event_id) as count
+                FROM "Events Metadata" em
+                LEFT JOIN "tabLocation" l ON em.location_id = l.name
+                WHERE {where_clause}
+                    AND COALESCE(em.city, l.city) IS NOT NULL
+                    AND COALESCE(em.city, l.city) <> ''
+                GROUP BY COALESCE(em.city, l.city)
+                ORDER BY count DESC
+            """
         
         db_logger.info(f"Executing query: {query}")
     
         query_start = time.time()
-        rows = await conn.fetch(query)
-        query_elapsed = (time.time() - query_start) * 1000
-        
-        perf_logger.info(f"get_available_locations query completed in {query_elapsed:.2f}ms")
+        try:
+            rows = await conn.fetch(query)
+            query_elapsed = (time.time() - query_start) * 1000
+            
+            perf_logger.info(f"get_available_locations query completed in {query_elapsed:.2f}ms")
+        except Exception as e:
+            main_logger.error(f"Query failed: {str(e)}")
+            main_logger.error(f"Query was: {query}")
+            raise
         
         await insert_query("get_available_locations_for_category", {
             "category": category,
@@ -785,10 +822,23 @@ async def get_data_metadata_on_samaajdata(
         for field_row in field_rows:
             field_name = field_row["field_name"]
             
+            # FIXED: Handle empty lists properly in SQL IN clause
+            if not event_categories or not event_subcategories or not partners:
+                main_logger.warning("One or more filter lists are empty, skipping example queries")
+                rows.append({
+                    "field_name": field_row["field_name"],
+                    "field_definition": format_urls_as_markdown_links(
+                        field_row["field_definition"]
+                    ) if field_row["field_definition"] else None,
+                    "example_values": [],
+                })
+                continue
+            
             cat_list = ", ".join([f"'{cat}'" for cat in event_categories])
             subcat_list = ", ".join([f"'{subcat}'" for subcat in event_subcategories])
             partner_list = ", ".join([f"'{partner}'" for partner in partners])
 
+            # FIXED: Properly format the IN clause - don't use empty parentheses
             examples_query = f"""
                 SELECT DISTINCT field_value
                 FROM "Events Metadata"
@@ -803,31 +853,41 @@ async def get_data_metadata_on_samaajdata(
 
             await ctx.debug(f"Examples Query for {field_name}: {examples_query}")
 
-            example_start = time.time()
-            example_rows = await conn.fetch(examples_query, field_name)
-            example_elapsed = (time.time() - example_start) * 1000
-            
-            perf_logger.debug(f"Field {field_name} examples query completed in {example_elapsed:.2f}ms")
-            
-            example_values = [row["field_value"] for row in example_rows]
-            
-            # ENHANCED: Format URLs in example values
-            formatted_examples = [
-                format_urls_as_markdown_links(str(val)) if val else val
-                for val in example_values
-            ]
-            
-            main_logger.debug(f"Field {field_name}: {len(example_values)} examples")
+            try:
+                example_start = time.time()
+                example_rows = await conn.fetch(examples_query, field_name)
+                example_elapsed = (time.time() - example_start) * 1000
+                
+                perf_logger.debug(f"Field {field_name} examples query completed in {example_elapsed:.2f}ms")
+                
+                example_values = [row["field_value"] for row in example_rows]
+                
+                # ENHANCED: Format URLs in example values
+                formatted_examples = [
+                    format_urls_as_markdown_links(str(val)) if val else val
+                    for val in example_values
+                ]
+                
+                main_logger.debug(f"Field {field_name}: {len(example_values)} examples")
 
-            rows.append(
-                {
+                rows.append({
                     "field_name": field_row["field_name"],
                     "field_definition": format_urls_as_markdown_links(
                         field_row["field_definition"]
                     ) if field_row["field_definition"] else None,
                     "example_values": formatted_examples,
-                }
-            )
+                })
+            except Exception as e:
+                main_logger.error(f"Failed to get examples for field {field_name}: {str(e)}")
+                main_logger.error(f"Query was: {examples_query}")
+                # Add field without examples rather than failing completely
+                rows.append({
+                    "field_name": field_row["field_name"],
+                    "field_definition": format_urls_as_markdown_links(
+                        field_row["field_definition"]
+                    ) if field_row["field_definition"] else None,
+                    "example_values": [],
+                })
 
         result = {
             "fields": [
@@ -1214,6 +1274,11 @@ async def create_bar_chart(
 ) -> dict:
     """
     Creates a bar chart image and returns the public URL of the image.
+    
+    Accepts data in multiple formats:
+    1. {"categories": [...], "Series1": [...], "Series2": [...]}
+    2. {"raw_data": [{"category": "X", "value": 100}, ...]}
+    3. {"Category1": value1, "Category2": value2, ...} - Simple key-value pairs
     """
     
     main_logger.info(f"Creating {chart_style} bar chart with {len(data) if data else 0} data series")
@@ -1245,7 +1310,31 @@ async def create_bar_chart(
                 raise ValueError("Data must be a non-empty dictionary")
 
         with log_sync_operation("bar_chart_data_processing", main_logger):
-            if "raw_data" in data:
+            # ENHANCED: Handle simple key-value pairs (most common format from agents)
+            if "raw_data" not in data and "categories" not in data:
+                # Check if this is a simple key-value format: {"Label1": value, "Label2": value}
+                # Detect by checking if all values are numbers or can be converted to numbers
+                all_numeric = True
+                for key, value in data.items():
+                    if not isinstance(key, str):
+                        all_numeric = False
+                        break
+                    try:
+                        float(value)
+                    except (ValueError, TypeError):
+                        all_numeric = False
+                        break
+                
+                if all_numeric:
+                    # Convert simple format to categories format
+                    main_logger.info("Detected simple key-value format, converting to categories format")
+                    categories = list(data.keys())
+                    series_data = {"Count": [float(data[k]) for k in categories]}
+                    main_logger.info(f"Converted to {len(categories)} categories with 1 series")
+                else:
+                    raise ValueError("Data must contain 'categories' key, 'raw_data' key, or be simple key-value pairs with numeric values")
+            
+            elif "raw_data" in data:
                 if isinstance(data["raw_data"], list) and data["raw_data"]:
                     if isinstance(data["raw_data"][0], dict):
                         df = pd.DataFrame(data["raw_data"])
@@ -1286,9 +1375,7 @@ async def create_bar_chart(
                         categories = list(value_counts.keys())
                         series_data = {"Count": list(value_counts.values())}
             else:
-                if "categories" not in data:
-                    raise ValueError("Data must contain 'categories' key or 'raw_data' key")
-
+                # Original format with "categories" key
                 categories = data["categories"]
                 series_data = {}
 
