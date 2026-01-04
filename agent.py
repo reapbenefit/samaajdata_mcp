@@ -506,39 +506,11 @@ async def answer_query(request: QueryRequest):
                     enhanced_query_length = len(enhanced_query)
                     main_logger.info(f"Enhanced query prepared: {enhanced_query_length} characters "
                                     f"(original: {len(request.query)}, context: {len(context)})")
-
-                # Build solutions section for instructions
-                solutions_section = ""
-                if relevant_solutions:
-                    solutions_section = "\n\n                ⚠️ MANDATORY SOLUTIONS FORMATTING - READ CAREFULLY ⚠️\n"
-                    solutions_section += "                After using the MCPTool to gather data, you MUST include relevant solutions.\n"
-                    solutions_section += "                The following solutions have been identified as relevant:\n\n"
-                    for i, solution in enumerate(relevant_solutions, 1):
-                        solutions_section += f"                Solution {i}: {solution}\n\n"
-                    solutions_section += "                ⚠️ CRITICAL: Solutions MUST be in a SEPARATE SECTION with clear demarcation ⚠️\n"
-                    solutions_section += "                \n"
-                    solutions_section += "                REQUIRED FORMAT (you MUST follow this exact structure):\n"
-                    solutions_section += "                \n"
-                    solutions_section += "                1. First, present ALL data analysis and findings from the MCPTool\n"
-                    solutions_section += "                2. End the data section with a period or conclusion\n"
-                    solutions_section += "                3. Add TWO blank lines (clear separation)\n"
-                    solutions_section += "                4. Then start a NEW section with a markdown heading: ## Suggested Actions (or ## Recommendations or ## Next Steps)\n"
-                    solutions_section += "                5. Present solutions in this new section using bullet points or numbered list\n"
-                    solutions_section += "                6. NEVER include solutions in the same paragraph as data\n"
-                    solutions_section += "                7. NEVER mix solutions with data analysis\n"
-                    solutions_section += "                \n"
-                    solutions_section += "                EXAMPLE FORMAT:\n"
-                    solutions_section += "                [Your data analysis and findings here...]\n"
-                    solutions_section += "                \n"
-                    solutions_section += "                \n"
-                    solutions_section += "                ## Suggested Actions\n"
-                    solutions_section += "                \n"
-                    solutions_section += "                [Your solutions here as bullets or list]\n"
-                    solutions_section += "                \n"
-                    solutions_section += "                ⚠️ FAILURE TO FOLLOW THIS FORMAT IS A CRITICAL ERROR ⚠️"
+                main_logger.info(f"Relevant solutions: {relevant_solutions}")
+               
 
                 # Enhanced instructions that account for conversation context
-                instructions = f"""You are a helpful assistant that can answer questions about samaajdata using the tools provided.{solutions_section} 
+                instructions = f"""You are a helpful assistant that can answer questions about samaajdata using the tools provided.
 
                 IMPORTANT CONTEXT HANDLING:
                 - ALWAYS read and understand the conversation context provided above carefully
@@ -562,13 +534,6 @@ async def answer_query(request: QueryRequest):
                 1. First, use the MCPTool to gather relevant data and information about the user's query
                 2. Analyze the data retrieved from the tools
                 3. Present ALL data analysis and findings FIRST - complete this entire section before moving to solutions
-                4. END the data section completely (with a period, conclusion, or summary)
-                5. Add TWO BLANK LINES to create clear visual separation
-                6. If solutions are provided above, start a COMPLETELY NEW SECTION with a markdown heading (## Suggested Actions, ## Recommendations, or ## Next Steps)
-                7. Present solutions ONLY in this new section, using bullet points or numbered lists
-                8. CRITICAL: Solutions must NEVER appear in the same paragraph, sentence, or section as data
-                9. CRITICAL: There must be a clear visual break (two blank lines + heading) between data and solutions
-                10. If you mix solutions with data, you have made an error - they MUST be in separate sections
 
                 LOCATION DISCOVERY:
                 - When a user asks about data for a location, FIRST check if that location has data available
@@ -579,7 +544,18 @@ async def answer_query(request: QueryRequest):
                 The user would highly prefer a visual representation of the data and if you can provide one using the tools provided, do so even if the user hasn't explicitly asked for one in their query. If none of the tools can be used to make the data more visually appealing or readable, use markdown formatting to appropriately format the data as if it can be used in a report analysing the data (e.g. using heading, lists, tables, bold, colors etc.). 
 
                 FALLBACK:
-                If you are not sure about the answer, you can say so and ask the user to provide more details. But do this only after you have exhaustively explored all the possibilities through the tools provided."""
+                If you are not sure about the answer, you can say so and ask the user to provide more details. But do this only after you have exhaustively explored all the possibilities through the tools provided.
+                
+                RELEVANT SOLUTIONS:
+                - The following solutions are relevant to the user's query based on keyword matching. 
+                - Add these solutions to your response after you have presented the data.
+                - Use markdown formatting to appropriately format the solutions as if it can be used in a report analysing the data (e.g. using heading, lists, tables, bold, colors etc.).
+                - Use a relevant heading after the data presentation to highlight the solutions.
+                - Use a blank line after the data presentation and before the solutions.
+                - Use a blank line after the solutions.
+                {relevant_solutions}
+                
+                """
 
                 # Create agent with tools
                 async with log_async_operation("agent_creation", main_logger):
