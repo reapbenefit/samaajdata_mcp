@@ -511,12 +511,17 @@ async def answer_query(request: QueryRequest):
                 solutions_section = ""
                 if relevant_solutions:
                     solutions_section = "\n\n                SOLUTIONS TO INCLUDE IN RESPONSE:\n"
-                    solutions_section += "                After using the MCPTool to gather data and information, you MUST also include relevant solutions in your response.\n"
+                    solutions_section += "                After using the MCPTool to gather data and information, you MUST include relevant solutions in your response.\n"
                     solutions_section += "                The following solutions have been identified as relevant to the user's query through AI analysis:\n\n"
                     for i, solution in enumerate(relevant_solutions, 1):
                         solutions_section += f"                Solution {i}: {solution}\n\n"
-                    solutions_section += "                IMPORTANT: Integrate these solutions naturally into your response after presenting the data from the tools. "
-                    solutions_section += "The solutions should help the user take action or understand next steps related to their query."
+                    solutions_section += "                CRITICAL FORMATTING REQUIREMENTS:\n"
+                    solutions_section += "                - Present solutions in a COMPLETELY SEPARATE section after all data presentation\n"
+                    solutions_section += "                - Use a clear heading (e.g., '## Suggested Actions' or '## Next Steps' or '## Recommendations')\n"
+                    solutions_section += "                - Add a blank line/paragraph break between the data section and solutions section\n"
+                    solutions_section += "                - Make it visually clear that solutions are suggestions/recommendations, not part of the data\n"
+                    solutions_section += "                - Format solutions using markdown (bullets, bold text, etc.) for clarity\n"
+                    solutions_section += "                - Do NOT mix solutions with data presentation - keep them distinctly separate"
 
                 # Enhanced instructions that account for conversation context
                 instructions = f"""You are a helpful assistant that can answer questions about samaajdata using the tools provided.{solutions_section} 
@@ -542,11 +547,14 @@ async def answer_query(request: QueryRequest):
                 WORKFLOW FOR RESPONSES:
                 1. First, use the MCPTool to gather relevant data and information about the user's query
                 2. Analyze the data retrieved from the tools
-                3. If solutions are provided above (in the SOLUTIONS section), use them into your response after presenting the data
-                4. Present the data first, then provide actionable solutions or next steps
-                5. Make sure solutions are relevant 
-                6. Add the solution in a different paragraph after the data presentation. You may use markdown formatting to appropriately format the solution as if it can be used in a report analysing the data (e.g. using heading, lists, tables, bold, colors etc.).
-                7. Also (very importantly) ALWAYS include a relevant heading after the data presentation to highlight the solutions.
+                3. Present the data analysis first - this is the main content of your response
+                4. After completing the data presentation, add a CLEAR VISUAL SEPARATOR (blank line or horizontal rule)
+                5. Then, if solutions are provided above (in the SOLUTIONS section), present them in a DISTINCT SECTION with:
+                   - A clear heading (e.g., "## Suggested Actions", "## Recommendations", "## Next Steps")
+                   - Formatting that makes it obvious these are suggestions, not data
+                   - Markdown formatting (bullets, bold, etc.) for readability
+                6. The solutions section should be visually and contextually separate from the data - users should immediately understand that data presentation has ended and suggestions are beginning
+                7. Do NOT mix solutions with data - keep them in completely separate paragraphs/sections
 
                 LOCATION DISCOVERY:
                 - When a user asks about data for a location, FIRST check if that location has data available
