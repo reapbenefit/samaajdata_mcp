@@ -510,18 +510,32 @@ async def answer_query(request: QueryRequest):
                 # Build solutions section for instructions
                 solutions_section = ""
                 if relevant_solutions:
-                    solutions_section = "\n\n                SOLUTIONS TO INCLUDE IN RESPONSE:\n"
-                    solutions_section += "                After using the MCPTool to gather data and information, you MUST include relevant solutions in your response.\n"
-                    solutions_section += "                The following solutions have been identified as relevant to the user's query through AI analysis:\n\n"
+                    solutions_section = "\n\n                ⚠️ MANDATORY SOLUTIONS FORMATTING - READ CAREFULLY ⚠️\n"
+                    solutions_section += "                After using the MCPTool to gather data, you MUST include relevant solutions.\n"
+                    solutions_section += "                The following solutions have been identified as relevant:\n\n"
                     for i, solution in enumerate(relevant_solutions, 1):
                         solutions_section += f"                Solution {i}: {solution}\n\n"
-                    solutions_section += "                CRITICAL FORMATTING REQUIREMENTS:\n"
-                    solutions_section += "                - Present solutions in a COMPLETELY SEPARATE section after all data presentation\n"
-                    solutions_section += "                - Use a clear heading (e.g., '## Suggested Actions' or '## Next Steps' or '## Recommendations')\n"
-                    solutions_section += "                - Add a blank line/paragraph break between the data section and solutions section\n"
-                    solutions_section += "                - Make it visually clear that solutions are suggestions/recommendations, not part of the data\n"
-                    solutions_section += "                - Format solutions using markdown (bullets, bold text, etc.) for clarity\n"
-                    solutions_section += "                - Do NOT mix solutions with data presentation - keep them distinctly separate"
+                    solutions_section += "                ⚠️ CRITICAL: Solutions MUST be in a SEPARATE SECTION with clear demarcation ⚠️\n"
+                    solutions_section += "                \n"
+                    solutions_section += "                REQUIRED FORMAT (you MUST follow this exact structure):\n"
+                    solutions_section += "                \n"
+                    solutions_section += "                1. First, present ALL data analysis and findings from the MCPTool\n"
+                    solutions_section += "                2. End the data section with a period or conclusion\n"
+                    solutions_section += "                3. Add TWO blank lines (clear separation)\n"
+                    solutions_section += "                4. Then start a NEW section with a markdown heading: ## Suggested Actions (or ## Recommendations or ## Next Steps)\n"
+                    solutions_section += "                5. Present solutions in this new section using bullet points or numbered list\n"
+                    solutions_section += "                6. NEVER include solutions in the same paragraph as data\n"
+                    solutions_section += "                7. NEVER mix solutions with data analysis\n"
+                    solutions_section += "                \n"
+                    solutions_section += "                EXAMPLE FORMAT:\n"
+                    solutions_section += "                [Your data analysis and findings here...]\n"
+                    solutions_section += "                \n"
+                    solutions_section += "                \n"
+                    solutions_section += "                ## Suggested Actions\n"
+                    solutions_section += "                \n"
+                    solutions_section += "                [Your solutions here as bullets or list]\n"
+                    solutions_section += "                \n"
+                    solutions_section += "                ⚠️ FAILURE TO FOLLOW THIS FORMAT IS A CRITICAL ERROR ⚠️"
 
                 # Enhanced instructions that account for conversation context
                 instructions = f"""You are a helpful assistant that can answer questions about samaajdata using the tools provided.{solutions_section} 
@@ -547,14 +561,14 @@ async def answer_query(request: QueryRequest):
                 WORKFLOW FOR RESPONSES:
                 1. First, use the MCPTool to gather relevant data and information about the user's query
                 2. Analyze the data retrieved from the tools
-                3. Present the data analysis first - this is the main content of your response
-                4. After completing the data presentation, add a CLEAR VISUAL SEPARATOR (blank line or horizontal rule)
-                5. Then, if solutions are provided above (in the SOLUTIONS section), present them in a DISTINCT SECTION with:
-                   - A clear heading (e.g., "## Suggested Actions", "## Recommendations", "## Next Steps")
-                   - Formatting that makes it obvious these are suggestions, not data
-                   - Markdown formatting (bullets, bold, etc.) for readability
-                6. The solutions section should be visually and contextually separate from the data - users should immediately understand that data presentation has ended and suggestions are beginning
-                7. Do NOT mix solutions with data - keep them in completely separate paragraphs/sections
+                3. Present ALL data analysis and findings FIRST - complete this entire section before moving to solutions
+                4. END the data section completely (with a period, conclusion, or summary)
+                5. Add TWO BLANK LINES to create clear visual separation
+                6. If solutions are provided above, start a COMPLETELY NEW SECTION with a markdown heading (## Suggested Actions, ## Recommendations, or ## Next Steps)
+                7. Present solutions ONLY in this new section, using bullet points or numbered lists
+                8. CRITICAL: Solutions must NEVER appear in the same paragraph, sentence, or section as data
+                9. CRITICAL: There must be a clear visual break (two blank lines + heading) between data and solutions
+                10. If you mix solutions with data, you have made an error - they MUST be in separate sections
 
                 LOCATION DISCOVERY:
                 - When a user asks about data for a location, FIRST check if that location has data available
