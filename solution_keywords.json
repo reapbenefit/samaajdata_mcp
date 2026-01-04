@@ -1,0 +1,35 @@
+[
+    {
+        "keywords": ["waste", "garbage", "trash", "litter", "sanitation", "cleanliness"],
+        "solution": "Contact your local municipal corporation to report waste management issues. You can also use the Swachh Bharat app to file complaints. For immediate action, reach out to your ward councilor or use the citizen helpline."
+    },
+    {
+        "keywords": ["water", "water supply", "drinking water", "water quality", "water shortage"],
+        "solution": "Report water supply issues to your local water board or municipal corporation. For water quality concerns, contact the Public Health Engineering Department. In emergencies, use the 24/7 helpline or file a complaint through the official government portal."
+    },
+    {
+        "keywords": ["flooding", "drainage", "waterlogging", "rain", "monsoon"],
+        "solution": "Report flooding or drainage issues immediately to the municipal corporation's emergency helpline. For persistent waterlogging, contact the Storm Water Drainage Department. Document the issue with photos and location details for faster resolution."
+    },
+    {
+        "keywords": ["street lights", "streetlight", "lighting", "dark", "illumination"],
+        "solution": "Report non-functional street lights to your local electricity board or municipal corporation. Most cities have a dedicated helpline or mobile app for street light complaints. Include the pole number and exact location for quick resolution."
+    },
+    {
+        "keywords": ["pothole", "road", "road condition", "bad road", "road repair"],
+        "solution": "Report potholes and road damage to the Public Works Department (PWD) or your local municipal corporation. Use the official complaint portal or mobile app with photos and GPS location. For urgent safety issues, contact the traffic police."
+    },
+    {
+        "keywords": ["corruption", "bribe", "bribery", "graft", "fraud"],
+        "solution": "Report corruption to the Anti-Corruption Bureau (ACB) or the Central Vigilance Commission. You can also use the online complaint portal or call the toll-free helpline. Maintain documentation and evidence of the incident."
+    },
+    {
+        "keywords": ["scheme", "benefit", "subsidy", "government scheme", "welfare"],
+        "solution": "Visit your nearest Common Service Centre (CSC) or the official government portal for scheme information. Contact the relevant department's helpline or visit the district administration office. Ensure you have required documents like Aadhaar, income certificate, etc."
+    },
+    {
+        "keywords": ["park", "garden", "public space", "recreation", "playground"],
+        "solution": "Report issues with parks or public spaces to the Parks and Gardens Department of your municipal corporation. For maintenance requests, use the official complaint portal. Community groups can also organize cleanup drives with municipal permission."
+    }
+]
+

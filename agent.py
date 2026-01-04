@@ -10,6 +10,8 @@ from datetime import datetime
 import uuid
 import time
 import re
+import json
+from pathlib import Path
 
 # Import logging functionality
 from logging_config import (
@@ -44,6 +46,111 @@ app.add_middleware(
 )
 
 main_logger.info("CORS middleware configured for all origins")
+
+# Solution keywords mapping - loaded from file
+SOLUTION_KEYWORDS_FILE = Path(__file__).parent / "solution_keywords.json"
+
+@log_execution_time("load_solution_keywords", main_logger)
+def load_solution_keywords() -> List[dict]:
+    """
+    Load solution keywords from JSON file.
+    Returns a list of dictionaries with 'keywords' and 'solution' keys.
+    """
+    try:
+        if not SOLUTION_KEYWORDS_FILE.exists():
+            main_logger.warning(f"Solution keywords file not found: {SOLUTION_KEYWORDS_FILE}. Using empty list.")
+            return []
+        
+        with open(SOLUTION_KEYWORDS_FILE, 'r', encoding='utf-8') as f:
+            data = json.load(f)
+        
+        # Validate structure
+        if not isinstance(data, list):
+            main_logger.error(f"Invalid format in {SOLUTION_KEYWORDS_FILE}: expected list, got {type(data)}")
+            return []
+        
+        # Validate each entry has required keys
+        valid_data = []
+        for i, entry in enumerate(data):
+            if not isinstance(entry, dict):
+                main_logger.warning(f"Skipping invalid entry at index {i}: expected dict, got {type(entry)}")
+                continue
+            if "keywords" not in entry or "solution" not in entry:
+                main_logger.warning(f"Skipping invalid entry at index {i}: missing 'keywords' or 'solution' key")
+                continue
+            valid_data.append(entry)
+        
+        main_logger.info(f"Loaded {len(valid_data)} solution keyword entries from {SOLUTION_KEYWORDS_FILE}")
+        return valid_data
+        
+    except json.JSONDecodeError as e:
+        main_logger.error(f"Failed to parse JSON from {SOLUTION_KEYWORDS_FILE}: {e}")
+        return []
+    except Exception as e:
+        main_logger.error(f"Error loading solution keywords from {SOLUTION_KEYWORDS_FILE}: {e}")
+        return []
+
+# Load solution keywords at module level
+SOLUTION_KEYWORDS = load_solution_keywords()
+
+class SolutionMatchOutput(BaseModel):
+    """Output model for solution matching AI call"""
+    relevant_solutions: List[str] = Field(
+        description="List of relevant solutions that match the user's query"
+    )
+    reasoning: str = Field(
+        description="Brief explanation of why these solutions are relevant"
+    )
+
+@log_execution_time("find_relevant_solutions", main_logger)
+async def find_relevant_solutions(query: str) -> List[str]:
+    """
+    Use AI to find relevant solutions based on the query.
+    Analyzes the query against available solutions and returns the most relevant ones.
+    """
+    if not SOLUTION_KEYWORDS:
+        main_logger.warning("No solution keywords loaded, returning empty list")
+        return []
+    
+    # Build the available solutions context for the AI
+    solutions_context = "Available solutions:\n\n"
+    for i, entry in enumerate(SOLUTION_KEYWORDS, 1):
+        keywords_str = ", ".join(entry["keywords"])
+        solutions_context += f"{i}. Keywords: {keywords_str}\n"
+        solutions_context += f"   Solution: {entry['solution']}\n\n"
+    
+    # Create instructions for the solution matching agent
+    solution_matching_instructions = f"""You are a solution matching assistant. Your task is to analyze a user's query and identify which solutions from the available list are relevant.
+
+{solutions_context}
+
+Analyze the user's query and determine which solutions are relevant. A solution is relevant if:
+- The query mentions topics, issues, or keywords related to the solution
+- The query asks about problems that the solution addresses
+- The query seeks help or information about topics covered by the solution
+
+Return only the solutions that are genuinely relevant to the user's query. Do not include solutions that are only tangentially related."""
+
+    # Create the solution matching agent
+    solution_agent = Agent(
+        name="Solution Matcher",
+        instructions=solution_matching_instructions,
+        model="gpt-4.1",
+        output_type=SolutionMatchOutput,
+    )
+    
+    try:
+        main_logger.debug("Running AI-based solution matching...")
+        result = await Runner.run(solution_agent, query)
+        output = result.final_output_as(SolutionMatchOutput)
+        
+        main_logger.info(f"AI found {len(output.relevant_solutions)} relevant solutions. Reasoning: {output.reasoning[:100]}...")
+        return output.relevant_solutions
+        
+    except Exception as e:
+        main_logger.error(f"Error in AI-based solution matching: {e}")
+        # Fallback to empty list if AI call fails
+        return []
 
 # Chat history models
 class ChatMessage(BaseModel):
@@ -385,6 +492,10 @@ async def answer_query(request: QueryRequest):
                 if resolved_query != request.query:
                     main_logger.info(f"Query resolved from '{request.query}' to '{resolved_query}'")
                 
+                # Find relevant solutions using AI analysis
+                async with log_async_operation("solution_finding", main_logger):
+                    relevant_solutions = await find_relevant_solutions(resolved_query)
+                
                 # Build context from chat history
                 async with log_async_operation("context_building", main_logger):
                     context = build_context_from_history(request.chat_history)
@@ -396,8 +507,19 @@ async def answer_query(request: QueryRequest):
                     main_logger.info(f"Enhanced query prepared: {enhanced_query_length} characters "
                                     f"(original: {len(request.query)}, context: {len(context)})")
 
+                # Build solutions section for instructions
+                solutions_section = ""
+                if relevant_solutions:
+                    solutions_section = "\n\n                SOLUTIONS TO INCLUDE IN RESPONSE:\n"
+                    solutions_section += "                After using the MCPTool to gather data and information, you MUST also include relevant solutions in your response.\n"
+                    solutions_section += "                The following solutions have been identified as relevant to the user's query through AI analysis:\n\n"
+                    for i, solution in enumerate(relevant_solutions, 1):
+                        solutions_section += f"                Solution {i}: {solution}\n\n"
+                    solutions_section += "                IMPORTANT: Integrate these solutions naturally into your response after presenting the data from the tools. "
+                    solutions_section += "The solutions should help the user take action or understand next steps related to their query."
+
                 # Enhanced instructions that account for conversation context
-                instructions = """You are a helpful assistant that can answer questions about samaajdata using the tools provided. 
+                instructions = f"""You are a helpful assistant that can answer questions about samaajdata using the tools provided.{solutions_section} 
 
                 IMPORTANT CONTEXT HANDLING:
                 - ALWAYS read and understand the conversation context provided above carefully
@@ -415,7 +537,14 @@ async def answer_query(request: QueryRequest):
                 - Track numerical values mentioned (counts, percentages) for later reference
 
                 ANALYSIS APPROACH:
-                It is possible that the user's query is very vague and you need to use the tools in multiple steps to answer the question. Try your absolute best to answer the question even if it does not have a lot of details by repeatedly using the appropriate tools out of the ones provided, reflecting on the outputs of the previous steps and analysing if using the tools again can help you answer the question. 
+                It is possible that the user's query is very vague and you need to use the tools in multiple steps to answer the question. Try your absolute best to answer the question even if it does not have a lot of details by repeatedly using the appropriate tools out of the ones provided, reflecting on the outputs of the previous steps and analysing if using the tools again can help you answer the question.
+                
+                WORKFLOW FOR RESPONSES:
+                1. First, use the MCPTool to gather relevant data and information about the user's query
+                2. Analyze the data retrieved from the tools
+                3. If solutions are provided above (in the SOLUTIONS section), integrate them into your response after presenting the data
+                4. Present the data first, then provide actionable solutions or next steps
+                5. Make sure solutions are relevant and naturally flow with the data presentation 
 
                 LOCATION DISCOVERY:
                 - When a user asks about data for a location, FIRST check if that location has data available
