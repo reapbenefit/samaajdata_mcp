@@ -545,6 +545,8 @@ async def answer_query(request: QueryRequest):
                 3. If solutions are provided above (in the SOLUTIONS section), integrate them into your response after presenting the data
                 4. Present the data first, then provide actionable solutions or next steps
                 5. Make sure solutions are relevant and naturally flow with the data presentation 
+                6. Add the solution in a different paragraph after the data presentation. You may use markdown formatting to appropriately format the solution as if it can be used in a report analysing the data (e.g. using heading, lists, tables, bold, colors etc.).
+                7. Also use a relevant heading after the data presentation to highlight the solutions.
 
                 LOCATION DISCOVERY:
                 - When a user asks about data for a location, FIRST check if that location has data available
