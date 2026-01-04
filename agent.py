@@ -346,6 +346,32 @@ def resolve_contextual_references(query: str, chat_history: List[ChatMessage], e
     
     return query
 
+@log_execution_time("append_solutions_to_response", main_logger)
+def append_solutions_to_response(response: str, solutions: List[str]) -> str:
+    """
+    Append solutions to the agent's response in a clearly separated section.
+    This ensures solutions are never mixed with data.
+    """
+    if not solutions:
+        return response
+    
+    # Remove any trailing whitespace from the response
+    response = response.rstrip()
+    
+    # Build the solutions section with clear formatting
+    solutions_section = "\n\n---\n\n"
+    solutions_section += "## Suggested Actions\n\n"
+    solutions_section += "Based on your query, here are some recommended actions you can take:\n\n"
+    
+    for i, solution in enumerate(solutions, 1):
+        solutions_section += f"{i}. {solution}\n\n"
+    
+    # Append to the response
+    final_response = response + solutions_section
+    
+    main_logger.info(f"Appended {len(solutions)} solutions to response with clear separation")
+    return final_response
+
 @log_execution_time("build_context_from_history", main_logger)
 def build_context_from_history(chat_history: List[ChatMessage], max_messages: int = 100) -> str:
     """Build context string from chat history to provide to the agent (increased from 8 to 100)"""
@@ -506,11 +532,11 @@ async def answer_query(request: QueryRequest):
                     enhanced_query_length = len(enhanced_query)
                     main_logger.info(f"Enhanced query prepared: {enhanced_query_length} characters "
                                     f"(original: {len(request.query)}, context: {len(context)})")
-                main_logger.info(f"Relevant solutions: {relevant_solutions}")
-               
+                main_logger.info(f"Found {len(relevant_solutions)} relevant solutions (will be added via post-processing)")
 
                 # Enhanced instructions that account for conversation context
-                instructions = f"""You are a helpful assistant that can answer questions about samaajdata using the tools provided.
+                # Note: Solutions are NOT included in instructions - they will be appended via post-processing
+                instructions = """You are a helpful assistant that can answer questions about samaajdata using the tools provided.
 
                 IMPORTANT CONTEXT HANDLING:
                 - ALWAYS read and understand the conversation context provided above carefully
@@ -533,7 +559,7 @@ async def answer_query(request: QueryRequest):
                 WORKFLOW FOR RESPONSES:
                 1. First, use the MCPTool to gather relevant data and information about the user's query
                 2. Analyze the data retrieved from the tools
-                3. Present ALL data analysis and findings FIRST - complete this entire section before moving to solutions
+                3. Present ALL data analysis and findings - focus only on presenting the data and insights
 
                 LOCATION DISCOVERY:
                 - When a user asks about data for a location, FIRST check if that location has data available
@@ -544,18 +570,7 @@ async def answer_query(request: QueryRequest):
                 The user would highly prefer a visual representation of the data and if you can provide one using the tools provided, do so even if the user hasn't explicitly asked for one in their query. If none of the tools can be used to make the data more visually appealing or readable, use markdown formatting to appropriately format the data as if it can be used in a report analysing the data (e.g. using heading, lists, tables, bold, colors etc.). 
 
                 FALLBACK:
-                If you are not sure about the answer, you can say so and ask the user to provide more details. But do this only after you have exhaustively explored all the possibilities through the tools provided.
-                
-                RELEVANT SOLUTIONS:
-                - The following solutions are relevant to the user's query based on keyword matching. 
-                - Add these solutions to your response after you have presented the data.
-                - Use markdown formatting to appropriately format the solutions as if it can be used in a report analysing the data (e.g. using heading, lists, tables, bold, colors etc.).
-                - Use a relevant heading after the data presentation to highlight the solutions.
-                - Use a blank line after the data presentation and before the solutions.
-                - Use a blank line after the solutions.
-                {relevant_solutions}
-                
-                """
+                If you are not sure about the answer, you can say so and ask the user to provide more details. But do this only after you have exhaustively explored all the possibilities through the tools provided."""
 
                 # Create agent with tools
                 async with log_async_operation("agent_creation", main_logger):
@@ -590,13 +605,20 @@ async def answer_query(request: QueryRequest):
                     main_logger.info("Agent execution completed successfully")
                     
                     # Extract result
-                    final_output = result.final_output
+                    agent_output = result.final_output
                     
                     # Log result statistics
-                    if isinstance(final_output, str):
-                        result_length = len(final_output)
+                    if isinstance(agent_output, str):
+                        result_length = len(agent_output)
                         main_logger.info(f"Agent result: {result_length} characters")
                         performance_metrics.record_metric("response_length", result_length, "chars")
+                    
+                    # Post-process: Append solutions if available
+                    if relevant_solutions and isinstance(agent_output, str):
+                        main_logger.info("Appending solutions to response via post-processing")
+                        final_output = append_solutions_to_response(agent_output, relevant_solutions)
+                    else:
+                        final_output = agent_output
                     
                     # Record successful query metrics
                     performance_metrics.record_metric("successful_queries", 1, "count")
