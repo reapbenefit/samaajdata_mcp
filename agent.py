@@ -542,11 +542,11 @@ async def answer_query(request: QueryRequest):
                 WORKFLOW FOR RESPONSES:
                 1. First, use the MCPTool to gather relevant data and information about the user's query
                 2. Analyze the data retrieved from the tools
-                3. If solutions are provided above (in the SOLUTIONS section), integrate them into your response after presenting the data
+                3. If solutions are provided above (in the SOLUTIONS section), use them into your response after presenting the data
                 4. Present the data first, then provide actionable solutions or next steps
-                5. Make sure solutions are relevant and naturally flow with the data presentation 
+                5. Make sure solutions are relevant 
                 6. Add the solution in a different paragraph after the data presentation. You may use markdown formatting to appropriately format the solution as if it can be used in a report analysing the data (e.g. using heading, lists, tables, bold, colors etc.).
-                7. Also use a relevant heading after the data presentation to highlight the solutions.
+                7. Also (very importantly) ALWAYS include a relevant heading after the data presentation to highlight the solutions.
 
                 LOCATION DISCOVERY:
                 - When a user asks about data for a location, FIRST check if that location has data available
