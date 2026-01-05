@@ -1,35 +1,58 @@
 [
-    {
-        "keywords": ["waste", "garbage", "trash", "litter", "sanitation", "cleanliness"],
-        "solution": "Contact your local municipal corporation to report waste management issues. You can also use the Swachh Bharat app to file complaints. For immediate action, reach out to your ward councilor or use the citizen helpline."
-    },
-    {
-        "keywords": ["water", "water supply", "drinking water", "water quality", "water shortage"],
-        "solution": "Report water supply issues to your local water board or municipal corporation. For water quality concerns, contact the Public Health Engineering Department. In emergencies, use the 24/7 helpline or file a complaint through the official government portal."
-    },
-    {
-        "keywords": ["flooding", "drainage", "waterlogging", "rain", "monsoon"],
-        "solution": "Report flooding or drainage issues immediately to the municipal corporation's emergency helpline. For persistent waterlogging, contact the Storm Water Drainage Department. Document the issue with photos and location details for faster resolution."
-    },
-    {
-        "keywords": ["street lights", "streetlight", "lighting", "dark", "illumination"],
-        "solution": "Report non-functional street lights to your local electricity board or municipal corporation. Most cities have a dedicated helpline or mobile app for street light complaints. Include the pole number and exact location for quick resolution."
-    },
-    {
-        "keywords": ["pothole", "road", "road condition", "bad road", "road repair"],
-        "solution": "Report potholes and road damage to the Public Works Department (PWD) or your local municipal corporation. Use the official complaint portal or mobile app with photos and GPS location. For urgent safety issues, contact the traffic police."
-    },
-    {
-        "keywords": ["corruption", "bribe", "bribery", "graft", "fraud"],
-        "solution": "Report corruption to the Anti-Corruption Bureau (ACB) or the Central Vigilance Commission. You can also use the online complaint portal or call the toll-free helpline. Maintain documentation and evidence of the incident."
-    },
-    {
-        "keywords": ["scheme", "benefit", "subsidy", "government scheme", "welfare"],
-        "solution": "Visit your nearest Common Service Centre (CSC) or the official government portal for scheme information. Contact the relevant department's helpline or visit the district administration office. Ensure you have required documents like Aadhaar, income certificate, etc."
-    },
-    {
-        "keywords": ["park", "garden", "public space", "recreation", "playground"],
-        "solution": "Report issues with parks or public spaces to the Parks and Gardens Department of your municipal corporation. For maintenance requests, use the official complaint portal. Community groups can also organize cleanup drives with municipal permission."
-    }
+  {
+    "keywords": ["waste", "garbage", "trash", "litter", "sanitation", "cleanliness", "black spot", "dumping", "illegal dumping", "waste hotspot", "pourakarmika", "segregation", "dry waste", "wet waste"],
+    "solution": "Action plan for a persistent waste black-spot: (1) Discover: observe peak dumping times; take photos/videos and note exact location. (2) Investigate: speak to residents/shopkeepers/sanitation workers; identify root causes (missed pickups, no bins, low ownership, dark spot at night). (3) Solve: organize a one-time cleanup with community + request BBMP/municipality support; then prevent recurrence by creating local ownership (RWA/shopkeepers), requesting regular pickup enforcement, and adding deterrents like lighting. (4) Sustain: follow up weekly with ward officials; if dumping continues, request enforcement/fines and keep evidence. Share before/after and maintenance plan so it remains clean."
+  },
+  {
+    "keywords": ["water", "water supply", "drinking water", "water quality", "water shortage", "contamination", "dirty water", "tanker", "borewell", "pipeline"],
+    "solution": "Action plan for water supply/quality: (1) Document: time, duration, frequency, and photos of water quality issues. (2) Verify locally: ask neighbors if it’s isolated or area-wide; note affected streets/wards. (3) Report: raise complaint with local water board/municipality and get a complaint number. (4) Escalate: if unresolved, route to ward engineer / PHED (where applicable) and submit a written complaint with signatures. (5) Sustain: follow up with timelines; keep a log of responses and repeat outages to support escalation."
+  },
+  {
+    "keywords": ["flooding", "drainage", "waterlogging", "rain", "monsoon", "storm water", "blocked drain", "sewage overflow", "culvert", "nala", "gutter"],
+    "solution": "Action plan for drainage/waterlogging: (1) Evidence: photos/videos during and after rain, with time + exact spot; note if sewage mixing occurs. (2) Quick fix: raise urgent request to municipal control room / emergency helpline for de-silting and clearing blockages. (3) Community route: if it’s persistent, collect signatures and submit a letter to the ward engineer / storm water drainage division. (4) Follow-through: track what was done (desilting, cover repair, slope correction) and re-report if waterlogging repeats. (5) For rural contexts: coordinate with Panchayat/PDO using a signed letter + scheduled follow-ups."
+  },
+  {
+    "keywords": ["street lights", "streetlight", "lighting", "dark", "illumination", "halogen", "unsafe at night"],
+    "solution": "Action plan for streetlight failure or dark spots: (1) Record pole number / landmark + photos at night. (2) Report via electricity board/municipal complaint line/app; include pole ID and exact location. (3) If the dark spot enables problems (like dumping), propose temporary halogen lighting as a deterrent and push for permanent repairs. (4) Follow up every 3–7 days until closure; share complaint ID and status with local group/RWA for collective pressure."
+  },
+  {
+    "keywords": ["pothole", "potholes", "road", "road condition", "bad road", "road repair", "crater", "broken road", "accident risk"],
+    "solution": "Pothole fixing playbook: (1) Discover: walk your area and identify 5–10 potholes; photograph each. (2) Investigate: check if complaints already exist; ask neighbors how long it has been there and impacts. (3) Organize: create a simple list/map (even a Google Sheet) with location + photos. (4) Report: file complaint with PWD/municipality using the evidence; if rural, go through Panchayat/PDO. (5) Meeting script: ask for next steps + timeline and note the officer’s response. (6) Follow up: weekly until fixed; then share success story publicly to encourage more reporting."
+  },
+  {
+    "keywords": ["corruption", "bribe", "bribery", "graft", "fraud", "scam", "extortion"],
+    "solution": "If you faced a bribe/fraud: (1) Write down details immediately (date, place, names if known, what was asked, witnesses). (2) Preserve evidence safely (messages, recordings if legally permissible, receipts, documents). (3) Use official channels: Anti-Corruption Bureau / vigilance portal / department grievance mechanism. (4) If you fear retaliation, seek help from a trusted civil society/legal aid group; avoid direct confrontation. (5) Track complaint ID and outcomes."
+  },
+  {
+    "keywords": ["scheme", "benefit", "subsidy", "government scheme", "welfare", "pension", "ration", "aadhaar", "entitlement"],
+    "solution": "To access a government scheme: (1) Identify eligibility + required documents (Aadhaar, income certificate, residence proof, bank details). (2) Use official portal or nearest Common Service Centre (CSC) to apply. (3) If you face delays, submit a written query/complaint to the relevant department and keep acknowledgment. (4) For community-wide exclusion, collect cases and escalate via district administration grievance channels."
+  },
+  {
+    "keywords": ["park", "garden", "public space", "recreation", "playground", "community space", "beautification", "tree plantation"],
+    "solution": "Public space improvement plan: (1) Discover: list issues (garbage, broken equipment, unsafe corners, lack of lighting). (2) Investigate: talk to users (parents, walkers, vendors) and document needs. (3) Solve: run a community cleanup/repair request; coordinate with Parks & Gardens dept for maintenance. (4) Sustain: create a small stewardship group (RWA/youth volunteers) and a monthly check-in with the responsible official."
+  },
+  {
+    "keywords": ["lake", "waterbody", "pond", "tank", "lake restoration", "lake rejuvenation", "eutrophication", "algae", "sewage into lake", "encroachment", "wetland", "biodiversity", "stp", "treated water"],
+    "solution": "Lake restoration playbook (longer-term): (1) Learn & map: who is affected, who is causing it, and which agencies own/custody the lake (multiple agencies may be involved). (2) Know your lake: document inflows (sewage/stormwater), dumping points, encroachments, and historical boundaries if available. (3) Form a credible citizen group: build a diverse, apolitical local team (RWA + experts + volunteers) and define roles. (4) Build an actionable plan: prioritize stopping sewage inflow/diversion, preventing dumping, boundary demarcation/fencing, and only then ecological restoration (wetlands, biodiversity park). (5) Escalate strategically: use grievance portals to submit a documented report; if officials deny/ignore, consider RTI to obtain details; legal options like PIL are a last resort for encroachments. (6) Sustain: follow up for months/years with clear milestones and publicly track progress."
+  },
+  {
+    "keywords": ["bus", "public transport", "ksrtc", "bus timing", "bus delay", "overcrowding", "bus stand", "waiting room", "women waiting room", "commute", "last bus", "no bus"],
+    "solution": "Public transport fix plan (data-first): (1) Discover: identify the specific route/time slot problem and affected group (e.g., women, students, workers). (2) Investigate: run a quick survey (Google Form or paper) + collect photos/testimonies; aim for 100+ responses. (3) Create a short report: key numbers, peak timings, and 2–3 clear demands (e.g., 6:30 PM bus, clean waiting room, seating, safety). (4) Submit to depot/transport manager in-person; get acknowledgment. (5) Follow up: quick fixes (cleaning/repairs) can happen in days; schedule changes may take longer—track commitments and escalate to MLA/ward reps if needed."
+  },
+  {
+    "keywords": ["stubble burning", "parali", "crop residue", "farm burning", "air pollution", "smoke", "pm2.5", "mulching", "reaper", "wheat sowing", "soil health"],
+    "solution": "Stubble burning reduction plan (local solutions): (1) Survey villages/farms: understand why farmers burn (time, machines, germination fears, cost). (2) Build trust: listen first; avoid lecturing. (3) Find early adopters: identify at least one local farmer who already uses alternatives and make them the demonstration champion. (4) Demonstrate an alternative (mulching/seed-sowing-through-stubble etc.): run a small pilot on a part of the field before scaling; adapt to soil conditions. (5) Layer engagements: street play alone won’t work—combine awareness camps + door-to-door + multiple interactions (10–12 touchpoints). (6) Share peer learning: bring successful farmers to explain outcomes; this increases adoption."
+  },
+  {
+    "keywords": ["trees", "tree cutting", "forest", "green cover", "aarey", "deforestation", "metro depot", "land use change", "environment protest", "objection", "public hearing"],
+    "solution": "Tree/forest protection escalation ladder: (1) Understand the process: track land-use notifications, tree-cutting notices, and the authority responsible (municipal tree authority/forest dept). (2) Mobilize evidence: ecological value, floodplain/watercourse risks, and citizen testimonies; invite journalists/neutral observers to see the site. (3) Participate in official process: file objections during public suggestion windows; attend hearings in large numbers. (4) Transparency: use RTI to demand missing documents/details if government disclosures are inadequate. (5) Legal route: petitions/PILs can be used for procedural violations (e.g., missing statutory expert committee), but require sustained coordination. (6) Sustain movement: consistent peaceful action + documentation helps prevent irreversible actions."
+  },
+  {
+    "keywords": ["panchayat", "gram panchayat", "pdo", "village problem", "signature campaign", "petition letter", "shg", "self help group", "community development", "rural roads", "rural drainage"],
+    "solution": "Rural governance action template (roads/drainage/etc.): (1) Build a small support group (SHG members / community leaders). (2) Draft a clear letter to the PDO/Gram Panchayat with problem, location, and requested action; attach evidence if possible. (3) Run a signature campaign to show community backing. (4) Submit formally and ask for expected timeline + next steps. (5) Follow up persistently (weekly/fortnightly) until action is completed; keep a simple log of visits/calls and responses."
+  },
+  {
+    "keywords": ["grievance portal", "chief minister grievance", "cm portal", "online complaint portal", "higher authority", "escalation", "rti"],
+    "solution": "Escalation when local officials deny or ignore: (1) Compile your evidence and what local steps you already took (complaint IDs, meeting notes). (2) Submit to a higher grievance portal (state/CM grievance where applicable) with a crisp summary + attachments. (3) If critical information is missing, file an RTI to obtain documents/responsibility clarity. (4) Track acknowledgments and keep communications factual and consistent; escalation works best when your dossier is organized."
+  }
 ]
-
