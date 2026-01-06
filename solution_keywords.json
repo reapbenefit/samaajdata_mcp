@@ -2,5 +2,38 @@
     {
         "keywords": ["waste", "garbage", "trash", "litter", "sanitation", "cleanliness"],
         "forum_url": "https://forum.solveninja.org/t/thripthi-s-trash-to-treasure-journey-transforming-a-35-year-old-waste-spot-into-a-collective-gem/670.json"
+    }, 
+    {
+      "keywords": ["drainage", "waterlogging", "blocked drain", "overflow", "sewage overflow", "village drainage", "nala"],
+      "forum_url": "https://forum.solveninja.org/t/how-hemalatha-a-champion-of-community-development-creating-process-to-solve-drainage-issues-in-dodda-changavi/669.json"
+    },
+    {
+      "keywords": ["road", "bad road", "broken road", "transport", "no transport", "village road"],
+      "forum_url": "https://forum.solveninja.org/t/how-lalitha-improved-road-and-transport-in-s-kodagehalli/655.json"
+    },
+    {
+      "keywords": ["bus", "public transport", "ksrtc", "bus timing", "bus delay", "bus stand", "waiting room"],
+      "forum_url":"https://forum.solveninja.org/t/fixing-public-transport-waiting-room-problems-in-small-towns-a-step-by-step-guide/885.json"
+    },
+    {
+      "keywords": ["pothole", "potholes", "road safety", "crater", "accident risk"],
+      "forum_url": "https://forum.solveninja.org/t/one-pothole-at-a-time-how-you-can-fix-this-issue/328.json"
+    },
+    {
+      "keywords": ["lake", "waterbody", "pond", "tank", "lake pollution", "algae", "eutrophication", "sewage into lake"],
+      "forum_url": "https://forum.solveninja.org/t/fixing-public-transport-waiting-room-problems-in-small-towns-a-step-by-step-guide/885.json"
+    },
+    {
+      "keywords": ["lake funding", "no funds", "ignored by officials", "grievance portal", "cm grievance", "escalation"],
+      "forum_url": "https://forum.solveninja.org/t/how-i-secured-chief-ministerial-funds-for-lake-restoration-initiatives/37.json"
+    },
+    {
+      "keywords": ["stubble burning", "parali", "crop residue burning", "farm burning", "air pollution", "pm2.5", "smog"],
+      "forum_url": "https://forum.solveninja.org/t/how-to-save-10-500-acres-of-land-from-punjab-s-infamous-stubble-burning/217.json"
+    },
+    {
+      "keywords": ["trees", "tree cutting", "forest", "green cover", "aarey", "deforestation", "land use change", "metro depot"],
+      "forum_url":"https://forum.solveninja.org/t/how-we-saved-arey/18.json"
     }
+    
 ]
