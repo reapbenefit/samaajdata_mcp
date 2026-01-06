@@ -174,7 +174,7 @@ class StructuredSolution(BaseModel):
     )
     link: Optional[str] = Field(
         default=None,
-        description="Relevant link or URL related to the solution"
+        description="Use the forum link to provide a link to the solution"
     )
     when_to_recommend: Optional[str] = Field(
         default=None,
@@ -211,7 +211,7 @@ async def find_relevant_solutions(query: str) -> List[StructuredSolution]:
         try:
             cleaned_text = fetch_and_clean_discourse_post(forum_url)
             cleaned_texts.append(cleaned_text)
-            forum_urls.append(forum_url)
+            forum_urls.append(forum_url.replace(".json", ""))
         except Exception as e:
             main_logger.warning(f"Failed to fetch forum post from {forum_url}: {e}")
             continue
@@ -233,6 +233,7 @@ async def find_relevant_solutions(query: str) -> List[StructuredSolution]:
 
 {solutions_context}
 
+{forum_urls}
 ANALYSIS TASK:
 Analyze the user's query and determine which forum posts are relevant. A forum post is relevant if:
 - The query mentions topics, issues, or keywords related to the solution described in the post
