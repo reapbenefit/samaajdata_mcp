@@ -12,6 +12,8 @@ import time
 import re
 import json
 from pathlib import Path
+import requests
+from bs4 import BeautifulSoup
 
 # Import logging functionality
 from logging_config import (
@@ -50,6 +52,53 @@ main_logger.info("CORS middleware configured for all origins")
 # Solution keywords mapping - loaded from file
 SOLUTION_KEYWORDS_FILE = Path(__file__).parent / "solution_keywords.json"
 
+@log_execution_time("fetch_and_clean_discourse_post", main_logger)
+def fetch_and_clean_discourse_post(url: str) -> str:
+    """
+    Fetches a Discourse topic JSON URL and returns cleaned plain text
+    suitable for AI summarisation.
+
+    Args:
+        url (str): Discourse topic URL ending with .json
+
+    Returns:
+        str: Cleaned plain text content
+    """
+
+    if not url.endswith(".json"):
+        raise ValueError("URL must end with .json")
+
+    # 1. Fetch JSON
+    response = requests.get(url, timeout=10)
+    response.raise_for_status()
+    data = response.json()
+
+    # 2. Extract cooked HTML (first post)
+    try:
+        cooked_html = data["post_stream"]["posts"][0]["cooked"]
+    except (KeyError, IndexError):
+        raise ValueError("Unable to extract cooked post content")
+
+    # 3. Parse HTML
+    soup = BeautifulSoup(cooked_html, "html.parser")
+
+    # 4. Preserve links as text (optional but useful for AI)
+    for a in soup.find_all("a"):
+        text = a.get_text(strip=True)
+        href = a.get("href")
+        a.replace_with(f"{text} ({href})" if href else text)
+
+    # 5. Convert to plain text
+    text = soup.get_text(separator="\n")
+
+    # 6. Clean whitespace
+    cleaned_text = "\n".join(
+        line.strip()
+        for line in text.splitlines()
+        if line.strip()
+    )
+    return cleaned_text
+
 @log_execution_time("load_solution_keywords", main_logger)
 def load_solution_keywords() -> List[dict]:
     """
@@ -75,12 +124,12 @@ def load_solution_keywords() -> List[dict]:
             if not isinstance(entry, dict):
                 main_logger.warning(f"Skipping invalid entry at index {i}: expected dict, got {type(entry)}")
                 continue
-            if "keywords" not in entry or "solution" not in entry:
-                main_logger.warning(f"Skipping invalid entry at index {i}: missing 'keywords' or 'solution' key")
+            if "keywords" not in entry or "forum_url" not in entry:
+                main_logger.warning(f"Skipping invalid entry at index {i}: missing 'keywords' or 'forum_url' key")
                 continue
             valid_data.append(entry)
         
-        main_logger.info(f"Loaded {len(valid_data)} solution keyword entries from {SOLUTION_KEYWORDS_FILE}")
+        main_logger.info(f"Loaded {len(valid_data)} forum_url keyword entries from {SOLUTION_KEYWORDS_FILE}")
         return valid_data
         
     except json.JSONDecodeError as e:
@@ -93,17 +142,59 @@ def load_solution_keywords() -> List[dict]:
 # Load solution keywords at module level
 SOLUTION_KEYWORDS = load_solution_keywords()
 
+class StructuredSolution(BaseModel):
+    """Structured solution information extracted from forum posts"""
+    title: Optional[str] = Field(
+        default=None,
+        description="Title of the solution or problem addressed"
+    )
+    problem_type: Optional[str] = Field(
+        default=None,
+        description="Type of problem this solution addresses"
+    )
+    context: Optional[str] = Field(
+        default=None,
+        description="Context or background information about the problem"
+    )
+    steps_taken: Optional[str] = Field(
+        default=None,
+        description="Steps taken or actions to resolve the problem"
+    )
+    whom_to_contact: Optional[str] = Field(
+        default=None,
+        description="Who to contact for this issue or solution"
+    )
+    timeframe_for_visible_change: Optional[str] = Field(
+        default=None,
+        description="Expected timeframe for visible change or resolution"
+    )
+    materials_needed: Optional[str] = Field(
+        default=None,
+        description="Materials or resources needed for this solution"
+    )
+    link: Optional[str] = Field(
+        default=None,
+        description="Relevant link or URL related to the solution"
+    )
+    when_to_recommend: Optional[str] = Field(
+        default=None,
+        description="When this solution should be recommended (e.g., specific scenarios)"
+    )
+    summary: str = Field(
+        description="A concise summary of the solution in 2-3 sentences"
+    )
+
 class SolutionMatchOutput(BaseModel):
     """Output model for solution matching AI call"""
-    relevant_solutions: List[str] = Field(
-        description="List of relevant solutions that match the user's query"
+    relevant_solutions: List[StructuredSolution] = Field(
+        description="List of relevant structured solutions that match the user's query"
     )
     reasoning: str = Field(
         description="Brief explanation of why these solutions are relevant"
     )
 
 @log_execution_time("find_relevant_solutions", main_logger)
-async def find_relevant_solutions(query: str) -> List[str]:
+async def find_relevant_solutions(query: str) -> List[StructuredSolution]:
     """
     Use AI to find relevant solutions based on the query.
     Analyzes the query against available solutions and returns the most relevant ones.
@@ -112,24 +203,71 @@ async def find_relevant_solutions(query: str) -> List[str]:
         main_logger.warning("No solution keywords loaded, returning empty list")
         return []
     
+    # Fetch and prepare forum post content
+    cleaned_texts = []
+    forum_urls = []
+    for entry in SOLUTION_KEYWORDS:
+        forum_url = entry["forum_url"]
+        try:
+            cleaned_text = fetch_and_clean_discourse_post(forum_url)
+            cleaned_texts.append(cleaned_text)
+            forum_urls.append(forum_url)
+        except Exception as e:
+            main_logger.warning(f"Failed to fetch forum post from {forum_url}: {e}")
+            continue
+    
+    if not cleaned_texts:
+        main_logger.warning("No forum posts could be fetched, returning empty list")
+        return []
+    
     # Build the available solutions context for the AI
     solutions_context = "Available solutions:\n\n"
-    for i, entry in enumerate(SOLUTION_KEYWORDS, 1):
-        keywords_str = ", ".join(entry["keywords"])
-        solutions_context += f"{i}. Keywords: {keywords_str}\n"
-        solutions_context += f"   Solution: {entry['solution']}\n\n"
+    for i, cleaned_text in enumerate(cleaned_texts, 1):
+        solutions_context += f"{i}. {cleaned_text}\n\n"
     
     # Create instructions for the solution matching agent
-    solution_matching_instructions = f"""You are a solution matching assistant. Your task is to analyze a user's query and identify which solutions from the available list are relevant.
+    solution_matching_instructions = f"""You are a solution matching and extraction assistant. Your task is to:
+1. Analyze a user's query and identify which forum posts from the available list are relevant
+2. Extract structured information from each relevant forum post
+3. Return the information in a structured format
 
 {solutions_context}
 
-Analyze the user's query and determine which solutions are relevant. A solution is relevant if:
-- The query mentions topics, issues, or keywords related to the solution
-- The query asks about problems that the solution addresses
-- The query seeks help or information about topics covered by the solution
+ANALYSIS TASK:
+Analyze the user's query and determine which forum posts are relevant. A forum post is relevant if:
+- The query mentions topics, issues, or keywords related to the solution described in the post
+- The query asks about problems that the solution in the post addresses
+- The query seeks help or information about topics covered in the post
 
-Return only the solutions that are genuinely relevant to the user's query. Do not include solutions that are only tangentially related."""
+Return only the forum posts that are genuinely relevant to the user's query. Do not include posts that are only tangentially related.
+
+EXTRACTION AND INFERENCE TASK:
+For each relevant forum post, you need to INFER and structure the following information from the forum post content. The information may not be explicitly labeled - you must infer it from the narrative, descriptions, and context:
+
+- title: Infer the main topic or title from the post content (may be in the post title or first paragraph)
+- problem_type: INFER the type of problem from the content (e.g., if it talks about garbage/waste, infer "Waste dumping" or "Sanitation")
+- context: INFER the background/situation from the narrative - what problem was being addressed, what was the situation
+- steps_taken: INFER the steps/actions from descriptions of what was done - look for action verbs, sequences, procedures
+- whom_to_contact: INFER who should be contacted from mentions of departments, officials, helplines, or organizations
+- timeframe_for_visible_change: INFER expected timeframes from mentions of "within X days", "after Y weeks", or similar temporal references
+- materials_needed: INFER materials/resources from mentions of tools, supplies, or resources used
+- link: Extract any URLs or links mentioned (this should be explicit)
+- when_to_recommend: INFER scenarios from descriptions of when this approach worked or when it's applicable (e.g., "when complaints persist", "for ongoing issues")
+- summary: Create a concise 2-3 sentence summary that captures the essence of the solution
+
+CRITICAL INFERENCE GUIDELINES:
+- You MUST infer these fields from the forum post content - they will NOT be explicitly labeled
+- Read the entire post carefully and infer meaning from context, narrative, and descriptions
+- For problem_type: Look at what the post is about and categorize it (waste, water, infrastructure, etc.)
+- For steps_taken: Look for descriptions of actions, processes, or procedures - infer the sequence even if not numbered
+- For whom_to_contact: Infer from mentions of "municipal corporation", "ward councilor", "department", "helpline", etc.
+- For timeframe: Look for temporal clues like "within days", "after weeks", "immediately", or infer from context
+- For when_to_recommend: Infer from descriptions of scenarios, conditions, or situations where this solution applies
+- Only set a field to null if you truly cannot infer any relevant information from the post
+- The forum post may be a narrative/story - extract structured information from it through inference
+- Be intelligent in your inference - connect related information across the post
+
+Return the structured information for all relevant solutions with inferred fields populated."""
 
     # Create the solution matching agent
     solution_agent = Agent(
@@ -347,9 +485,9 @@ def resolve_contextual_references(query: str, chat_history: List[ChatMessage], e
     return query
 
 @log_execution_time("append_solutions_to_response", main_logger)
-def append_solutions_to_response(response: str, solutions: List[str]) -> str:
+def append_solutions_to_response(response: str, solutions: List[StructuredSolution]) -> str:
     """
-    Append solutions to the agent's response in a clearly separated section.
+    Append structured solutions to the agent's response in a clearly separated section.
     This ensures solutions are never mixed with data.
     """
     if not solutions:
@@ -364,12 +502,40 @@ def append_solutions_to_response(response: str, solutions: List[str]) -> str:
     solutions_section += "Based on your query, here are some recommended actions you can take:\n\n"
     
     for i, solution in enumerate(solutions, 1):
-        solutions_section += f"{i}. {solution}\n\n"
+        solutions_section += f"### {i}. {solution.title or 'Solution'}\n\n"
+        
+        if solution.summary:
+            solutions_section += f"{solution.summary}\n\n"
+        
+        # Add structured information if available
+        details = []
+        if solution.problem_type:
+            details.append(f"**Problem Type:** {solution.problem_type}")
+        if solution.context:
+            details.append(f"**Context:** {solution.context}")
+        if solution.steps_taken:
+            details.append(f"**Steps to Take:** {solution.steps_taken}")
+        if solution.whom_to_contact:
+            details.append(f"**Contact:** {solution.whom_to_contact}")
+        if solution.timeframe_for_visible_change:
+            details.append(f"**Expected Timeframe:** {solution.timeframe_for_visible_change}")
+        if solution.materials_needed:
+            details.append(f"**Materials Needed:** {solution.materials_needed}")
+        if solution.when_to_recommend:
+            details.append(f"**When to Use:** {solution.when_to_recommend}")
+        if solution.link:
+            details.append(f"**Link:** {solution.link}")
+        
+        if details:
+            # Join with double newline to ensure proper separation between items
+            solutions_section += "\n\n".join(details) + "\n\n"
+        
+        solutions_section += "---\n\n"
     
     # Append to the response
     final_response = response + solutions_section
     
-    main_logger.info(f"Appended {len(solutions)} solutions to response with clear separation")
+    main_logger.info(f"Appended {len(solutions)} structured solutions to response with clear separation")
     return final_response
 
 @log_execution_time("build_context_from_history", main_logger)
