@@ -10,3 +10,5 @@ matplotlib
 boto3
 scipy
 numpy
+requests
+beautifulsoup4
