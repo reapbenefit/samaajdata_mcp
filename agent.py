@@ -296,10 +296,16 @@ class ChatMessage(BaseModel):
     role: str  # "user" or "assistant" 
     content: str
     timestamp: Optional[datetime] = None
+    response_type: str
+    use_case: str
+    session_id: Optional[str] = None
+    chat_id: Optional[str] = None
+    sequence_number: Optional[int] = 0
 
 class QueryRequest(BaseModel):
     query: str
     chat_history: Optional[List[ChatMessage]] = []
+    session_id: Optional[str] = None
 
 # Middleware for request tracking
 @app.middleware("http")
@@ -654,6 +660,97 @@ async def input_guardrail(ctx, agent, input_data):
             output_info=final_output,
             tripwire_triggered=not final_output.is_relevant,
         )
+
+@app.post("/chat")
+@log_execution_time("chat_endpoint", perf_logger)
+async def chat(request: QueryRequest):
+    """Endpoint to answer a query or continue a chat with the agent"""
+    main_logger.info(f"Answering query or continuing chat: {request.query}")
+
+    if request.session_id is None:
+        #if session_id is not provided, create a new chat session
+        #call api to create a new chat session
+        response = requests.post(f"{os.getenv('FRAPPE_BACKEND_URL')}/api/method/solve_ninja.api.v1.chat.add_chat_message", json={
+            "content": request.query,
+            "role": "user",
+            "use_case":"Samaaj Data",
+            "response_type":"text",
+            })
+        if response.status_code != 200:
+            main_logger.error(f"Failed to create chat session: {response.status_code} {response.text}")
+            return {"message": "Failed to create chat session"}
+        
+        result = response.json()["data"]
+        session_id = result["session_id"]
+        chat_history = []
+    else:
+        response = requests.post(f"{os.getenv('FRAPPE_BACKEND_URL')}/api/method/solve_ninja.api.v1.chat.add_chat_message", json={
+            "content": request.query,
+            "role": "user",
+            "use_case":"Samaaj Data",
+            "response_type":"text",
+            "session_id": request.session_id,
+            })
+        chat_history = requests.post(f"{os.getenv('FRAPPE_BACKEND_URL')}/api/method/solve_ninja.api.v1.chat.get_chat_history", json={
+            "session_id": request.session_id,
+            })
+        if chat_history.status_code != 200:
+            main_logger.error(f"Failed to get chat history: {chat_history.status_code} {chat_history.text}")
+            return {"message": "Failed to get chat history"}
+        raw_history = chat_history.json()["data"]
+        chat_history = []
+        for item in raw_history:
+            # Frappe history may come as {"user_message": "...", "response": "...", ...}
+            user_message = item.get("user_message")
+            assistant_message = item.get("response")
+
+            if user_message:
+                chat_history.append(
+                    ChatMessage(
+                        role="user",
+                        content=user_message,
+                        response_type=item.get("response_type") or "text",
+                        use_case=item.get("use_case") or "Samaaj Data",
+                        session_id=item.get("session_id") or request.session_id,
+                        chat_id=item.get("chat_id"),
+                        sequence_number=item.get("sequence_number") or 0,
+                    )
+                )
+
+            if assistant_message:
+                chat_history.append(
+                    ChatMessage(
+                        role="assistant",
+                        content=assistant_message,
+                        response_type=item.get("response_type") or "text",
+                        use_case=item.get("use_case") or "Samaaj Data",
+                        session_id=item.get("session_id") or request.session_id,
+                        chat_id=item.get("chat_id"),
+                        sequence_number=item.get("sequence_number") or 0,
+                    )
+                )
+        session_id = request.session_id 
+    
+    agent_request = QueryRequest(
+        query=request.query,
+        chat_history=chat_history,
+    )
+    query_response = await answer_query(agent_request)
+    query_response_text = query_response if isinstance(query_response, str) else str(query_response)
+
+    response = requests.post(f"{os.getenv('FRAPPE_BACKEND_URL')}/api/method/solve_ninja.api.v1.chat.add_chat_message", json={
+        "content": query_response_text,
+        "role": "assistant",
+        "use_case":"Samaaj Data",
+        "response_type":"text",
+        "session_id": session_id,
+        })
+    
+    return {
+        "response": query_response_text,
+        "chat_id": response.json()["data"]["chat_id"],
+        "session_id": session_id,
+        }
 
 @app.post("/respond")
 @log_execution_time("answer_query_endpoint", perf_logger)
